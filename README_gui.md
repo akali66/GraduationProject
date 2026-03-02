@@ -1,24 +1,24 @@
-# Drilling-Hole Circle-Detection App GUI
+# 基于多尺度边缘融合的钻孔图像圆心鲁棒检测系统 GUI 指南
 
-A full-featured Tkinter desktop application for comparing multiple circle-detection algorithms (Hough, MinEnclosing, Canny+Hough, Multi-scale Fusion).
+这是一个功能齐全基于 Tkinter 的桌面端应用程序，专为比较多种圆心检测算法（霍夫圆变换、轮廓最小外接圆、基于Canny边缘的单尺度霍夫检测、多尺度边缘融合检测）而设计。
 
-## How to Run
+## 如何运行
 
-Activate your virtual environment and run the GUI application:
+在激活您的虚拟环境后，可直接在终端中运行此 GUI 应用程序：
 ```cmd
 python gui.py
 ```
 
-## Features and Controls
+## 功能与操作控件
 
-*   **Load Image:** Click the button in the left pane to import a `.png`, `.jpg`, or `.bmp` file. The original image will display in the left frame.
-*   **Detection Method Dropdown:** Select from one of the four implemented contour or Hough-based algorithms.
-*   **Dynamic Parameter Sliders:** Modifying the dropdown updates the list of relevant tunable parameters instantly. Sliders automatically feed their values to the backend algorithms.
-*   **Run Detection:** 
-    *   Converts the image to grayscale and applies your selected detector.
-    *   While processing, the cursor changes to a "busy" watch icon.
-    *   *Success:* Draws a red circle (boundary) and green cross (center). The status bar updates with calculation time, radius, simulated coverage, and an abstract confidence score.
-    *   *Failure:* Triggers a system warning or displays the failure directly.
-*   **Compare Mode:** If checked, running detection will split the results canvas into four tiles and run **all** known methods concurrently, comparing them visually side-by-side using your current global parameters.
-*   **Export Results:** Saves the final drawn visual element(s) as a high-resolution `.png` file. (In Compare mode, it exports a 2x2 collage).
-*   **Save/Load Config:** Export the active parameters via the UI to a standalone JSON file for persistence, and load them back later.
+*   **加载图像 (Load Image):** 点击左侧窗格中的按钮，可导入 `.png`, `.jpg`, 或者是 `.bmp` 格式的本地图像文件。原始图像将在左边的框架内预览显示。
+*   **检测方法选择 (Detection Method Checkout):** 从下拉菜单中选择这四种包含边缘计算或基于霍夫变换的算法模型之一。
+*   **动态参数滑块 (Dynamic Parameter Sliders):** 在下拉菜单中切换算法方法将立刻刷新对应的可调参数列表。通过调节滑块的值，将自动把对应的阈值参数用于后端的匹配算法计算中。
+*   **运行检测 (Run Detection):** 
+    *   软件会将图像转换为灰度矩阵，并在底层调用所选的检测器。
+    *   当在计算期间应用发生阻塞忙碌时，光标将会更改为"手表"的等待图标形态以作反馈提示。
+    *   *成功提示:* 会绘制一个红色的圆圈（即检测边框区域）及绿色的十字（圆心坐标）标记定位。同时，在底部的状态栏上将报告出该特定计算所耗费的时间量（毫秒级）、预估半径时长、边缘像素验证的重合量及其百分比抽象置信区间。
+    *   *失败提示:* 若没有圆可构成则系统会自动触发一次弹出式警告并在画面标记红字呈现失败情况与报告数据。
+*   **对比模式 (Compare Mode):** 如果启用该复选框，此时再点击"运行检测"，其操作效果将会在右侧的主画布之中进行“平铺/四分显示化处理”。所有这 4 种已有封装好的探查器被一次性同步执行。能够直观用当前预设全局统一滑竿的各项限制数字将他们的特征比较图直面排列出来。
+*   **导出结果图片 (Export Results):** 该过程可将这最后一步处理绘图绘制的最终渲染输出图作为一张高清全貌的 `.png` 图片存进到自定本地目录。(如当前工作模式勾选了“对比”，本程序则默认支持并导出一张由 4 图贴合拼接组建出的对比分析合并网格拼图)。
+*   **参数配置保存加载:** 内置专门配置面板与控件，用户允许使用图形界面随时把手头上精心控制设置调节后的所有状态的活动限幅数值作为独立的 JSON 标准设定配置文件落地。便于日后的重装/直接提取读取从而简化流程。

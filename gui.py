@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw, ImageFont
 import cv2
 import numpy as np
 import json
@@ -20,42 +20,42 @@ except ImportError:
         return 0.0, 0.0
 
 METHODS = {
-    "Hough Circle Transform": {
+    "霍夫圆变换": {
         "func": detect_hough,
         "params": ["dp", "minDist", "param1", "param2", "minRadius", "maxRadius"]
     },
-    "MinEnclosing": {
+    "轮廓最小外接圆": {
         "func": detect_min_enclosing,
         "params": ["binary_thresh", "min_area"]
     },
-    "Canny+Hough": {
+    "基于Canny边缘的单尺度霍夫检测": {
         "func": detect_canny_hough,
         "params": ["canny_low", "canny_high", "dp", "minDist", "param2", "minRadius", "maxRadius"]
     },
-    "Multi-scale Fusion": {
+    "多尺度边缘融合检测": {
         "func": detect_multi_scale_fusion,
         "params": ["fusion_thresh", "dp", "minDist", "param2", "minRadius", "maxRadius"]
     }
 }
 
 PARAM_DEF = {
-    "dp": {"label": "Hough dp", "type": "float", "range": (1.0, 3.0), "default": 1.2, "step": 0.1},
-    "minDist": {"label": "Min Dist", "type": "int", "range": (1, 500), "default": 30},
-    "param1": {"label": "Hough P1 (Gradient)", "type": "int", "range": (1, 300), "default": 50},
-    "param2": {"label": "Hough P2 (Accum)", "type": "int", "range": (1, 200), "default": 30},
-    "minRadius": {"label": "Min Radius", "type": "int", "range": (1, 200), "default": 10},
-    "maxRadius": {"label": "Max Radius", "type": "int", "range": (10, 500), "default": 100},
-    "binary_thresh": {"label": "Bin Thresh (0=Otsu)", "type": "int", "range": (0, 255), "default": 0},
-    "min_area": {"label": "Min Area", "type": "int", "range": (10, 10000), "default": 100},
-    "canny_low": {"label": "Canny Low", "type": "int", "range": (0, 255), "default": 50},
-    "canny_high": {"label": "Canny High", "type": "int", "range": (0, 255), "default": 150},
-    "fusion_thresh": {"label": "Fusion Threshold", "type": "float", "range": (0.1, 0.9), "default": 0.3, "step": 0.05}
+    "dp": {"label": "分辨率比例(dp)", "type": "float", "range": (1.0, 3.0), "default": 1.2, "step": 0.1},
+    "minDist": {"label": "最小圆心距", "type": "int", "range": (1, 500), "default": 30},
+    "param1": {"label": "梯度阈值(P1)", "type": "int", "range": (1, 300), "default": 50},
+    "param2": {"label": "累加器阈值(P2)", "type": "int", "range": (1, 200), "default": 30},
+    "minRadius": {"label": "最小半径", "type": "int", "range": (1, 200), "default": 10},
+    "maxRadius": {"label": "最大半径", "type": "int", "range": (10, 500), "default": 100},
+    "binary_thresh": {"label": "二值化阈值(0=大津法)", "type": "int", "range": (0, 255), "default": 0},
+    "min_area": {"label": "最小轮廓面积", "type": "int", "range": (10, 10000), "default": 100},
+    "canny_low": {"label": "Canny 边缘低阈值", "type": "int", "range": (0, 255), "default": 50},
+    "canny_high": {"label": "Canny 边缘高阈值", "type": "int", "range": (0, 255), "default": 150},
+    "fusion_thresh": {"label": "融合阈值", "type": "float", "range": (0.1, 0.9), "default": 0.3, "step": 0.05}
 }
 
 class CircleApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Drilling-Hole Circle-Detection App")
+        self.root.title("基于多尺度边缘融合的钻孔图像圆心鲁棒检测系统")
         self.root.geometry("1400x800")
         
         self.original_image_pil = None
@@ -80,20 +80,20 @@ class CircleApp:
         main_pane.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # --- LEFT PANE ---
-        self.left_frame = ttk.LabelFrame(main_pane, text="Input Image")
+        self.left_frame = ttk.LabelFrame(main_pane, text="输入图像")
         main_pane.add(self.left_frame, minsize=400)
         
-        self.btn_load = ttk.Button(self.left_frame, text="Load Image", command=self.load_image)
+        self.btn_load = ttk.Button(self.left_frame, text="加载图像", command=self.load_image)
         self.btn_load.pack(pady=5)
         
-        self.left_label = ttk.Label(self.left_frame, text="No Image Loaded", anchor=tk.CENTER)
+        self.left_label = ttk.Label(self.left_frame, text="未加载图像", anchor=tk.CENTER)
         self.left_label.pack(fill=tk.BOTH, expand=True)
 
         # --- MIDDLE PANE ---
-        self.mid_frame = ttk.LabelFrame(main_pane, text="Controls")
+        self.mid_frame = ttk.LabelFrame(main_pane, text="控制面板")
         main_pane.add(self.mid_frame, minsize=350)
         
-        ttk.Label(self.mid_frame, text="Detection Method:").pack(pady=(10,0))
+        ttk.Label(self.mid_frame, text="检测方法选择：").pack(pady=(10,0))
         self.method_var = tk.StringVar(value=list(METHODS.keys())[0])
         self.dropdown = ttk.Combobox(self.mid_frame, textvariable=self.method_var, values=list(METHODS.keys()), state="readonly")
         self.dropdown.pack(fill=tk.X, padx=10, pady=5)
@@ -107,42 +107,51 @@ class CircleApp:
         ttk.Separator(self.mid_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
         
         self.compare_var = tk.BooleanVar(value=False)
-        self.chk_compare = ttk.Checkbutton(self.mid_frame, text="Enable Compare Mode", variable=self.compare_var)
+        self.chk_compare = ttk.Checkbutton(self.mid_frame, text="启用对比模式", variable=self.compare_var)
         self.chk_compare.pack(pady=5)
         
-        self.btn_run = ttk.Button(self.mid_frame, text="Run Detection", command=self.run_detection)
+        self.btn_run = ttk.Button(self.mid_frame, text="运行检测", command=self.run_detection)
         self.btn_run.pack(pady=10, fill=tk.X, padx=10)
         
-        self.btn_export = ttk.Button(self.mid_frame, text="Export Results (PNG)", command=self.export_results, state=tk.DISABLED)
+        self.btn_export = ttk.Button(self.mid_frame, text="导出结果 (PNG)", command=self.export_results, state=tk.DISABLED)
         self.btn_export.pack(pady=(0,10), fill=tk.X, padx=10)
         
         ttk.Separator(self.mid_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
         
         btn_frame = ttk.Frame(self.mid_frame)
         btn_frame.pack(fill=tk.X, padx=10)
-        ttk.Button(btn_frame, text="Save Config", command=self.save_config).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0,2))
-        ttk.Button(btn_frame, text="Load Config", command=self.load_config).pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(2,0))
+        ttk.Button(btn_frame, text="保存配置", command=self.save_config).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0,2))
+        ttk.Button(btn_frame, text="加载配置", command=self.load_config).pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(2,0))
 
         # --- RIGHT PANE ---
-        self.right_frame = ttk.LabelFrame(main_pane, text="Results")
+        self.right_frame = ttk.LabelFrame(main_pane, text="结果视图")
         main_pane.add(self.right_frame, minsize=500)
         
-        self.right_single_label = ttk.Label(self.right_frame, text="Result will appear here", anchor=tk.CENTER)
+        self.right_single_frame = ttk.Frame(self.right_frame)
+        self.right_single_frame.pack(fill=tk.BOTH, expand=True)
+        self.right_single_label = ttk.Label(self.right_single_frame, text="结果将显示在此处", anchor=tk.CENTER)
         self.right_single_label.pack(fill=tk.BOTH, expand=True)
+        self.right_single_text = ttk.Label(self.right_single_frame, text="", anchor=tk.CENTER, font=("Helvetica", 11, "bold"))
+        self.right_single_text.pack(side=tk.BOTTOM, fill=tk.X, pady=5)
         
         self.right_grid_frame = ttk.Frame(self.right_frame)
-        self.grid_labels = []
+        self.grid_blocks = []
         for i in range(4):
-            lbl = ttk.Label(self.right_grid_frame, text=f"Tile {i}", anchor=tk.CENTER, relief=tk.SUNKEN)
-            lbl.grid(row=i//2, column=i%2, sticky="nsew", padx=2, pady=2)
-            self.grid_labels.append(lbl)
+            block = ttk.Frame(self.right_grid_frame, relief=tk.SUNKEN)
+            block.grid(row=i//2, column=i%2, sticky="nsew", padx=2, pady=2)
+            lbl_img = ttk.Label(block, text=f"图块 {i+1} 图像", anchor=tk.CENTER)
+            lbl_img.pack(fill=tk.BOTH, expand=True)
+            lbl_txt = ttk.Label(block, text=f"图块 {i+1} 信息", anchor=tk.CENTER, font=("Helvetica", 9))
+            lbl_txt.pack(side=tk.BOTTOM, fill=tk.X)
+            self.grid_blocks.append({"img": lbl_img, "txt": lbl_txt})
+            
         self.right_grid_frame.columnconfigure(0, weight=1)
         self.right_grid_frame.columnconfigure(1, weight=1)
         self.right_grid_frame.rowconfigure(0, weight=1)
         self.right_grid_frame.rowconfigure(1, weight=1)
         
         # --- BOTTOM PANE ---
-        self.status_var = tk.StringVar(value="Ready")
+        self.status_var = tk.StringVar(value="准备就绪")
         self.status_bar = ttk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
@@ -183,25 +192,30 @@ class CircleApp:
             slider.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
 
     def load_image(self):
-        path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png *.jpg *.jpeg *.bmp")])
+        path = filedialog.askopenfilename(filetypes=[("图像文件", "*.png *.jpg *.jpeg *.bmp")])
         if not path: return
         
         img_bgr = cv2.imread(path)
         if img_bgr is None:
-            messagebox.showerror("Error", "Failed to load image.")
+            messagebox.showerror("错误", "无法加载该图像。")
             return
             
         self.color_np = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB) # Pillow expects RGB
         self.grey_np = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
         
         self.original_image_pil = Image.fromarray(self.color_np)
-        self.display_image(self.original_image_pil, self.left_label, max_size=(600, 600))
-        self.status_var.set(f"Loaded: {os.path.basename(path)} | Size: {self.color_np.shape[1]}x{self.color_np.shape[0]}")
+        self.display_image(self.original_image_pil, self.left_label)
+        self.status_var.set(f"已加载: {os.path.basename(path)} | 尺寸: {self.color_np.shape[1]}x{self.color_np.shape[0]}")
         self.btn_export.config(state=tk.DISABLED)
         
-    def display_image(self, pil_img, label_widget, max_size=(600, 600)):
+    def display_image(self, pil_img, label_widget):
+        self.root.update_idletasks()
+        w, h = label_widget.winfo_width(), label_widget.winfo_height()
+        if w < 50 or h < 50:
+            w, h = 600, 600
+        
         img_copy = pil_img.copy()
-        img_copy.thumbnail(max_size, Image.Resampling.LANCZOS)
+        img_copy.thumbnail((w, h), Image.Resampling.LANCZOS)
         tk_img = ImageTk.PhotoImage(img_copy)
         label_widget.config(image=tk_img, text="")
         label_widget.image = tk_img 
@@ -218,21 +232,16 @@ class CircleApp:
             cv2.drawMarker(res_img, (x, y), (0, 255, 0), cv2.MARKER_CROSS, max(10, int(r * 0.2)), 2)
             
             cov, conf = evaluate_circle(self.grey_np, x, y, r)
-            text = f"{method_name} - R:{r}  Cov:{cov:.2f} Conf:{conf:.1f}%"
-            bg_color, text_color = (0, 0, 0), (0, 255, 0)
+            text = f"{method_name}   圆心:({x},{y})   半径:{r}   匹配度:{conf:.1f}%"
         else:
-            text = f"{method_name} - Failed"
-            bg_color, text_color = (0, 0, 0), (255, 0, 0)
+            text = f"{method_name} - 检测失败"
             
-        (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-        cv2.rectangle(res_img, (5, 5), (5 + tw + 10, 5 + th + 10), bg_color, -1)
-        cv2.putText(res_img, text, (10, 20 + th//2), cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 2)
-        
+        # 不再在此处绘制文字，而是仅仅返回渲染好标记的图像和提取出的文本供外部 Label 使用
         return res_img, text
 
     def run_detection(self):
         if self.grey_np is None:
-            messagebox.showwarning("Warning", "Please load image first!")
+            messagebox.showwarning("警告", "请先加载图像！")
             return
             
         self.root.config(cursor="watch")
@@ -241,7 +250,7 @@ class CircleApp:
         try:
             if not self.compare_var.get():
                 self.right_grid_frame.pack_forget()
-                self.right_single_label.pack(fill=tk.BOTH, expand=True)
+                self.right_single_frame.pack(fill=tk.BOTH, expand=True)
                 
                 method_name = self.method_var.get()
                 func = METHODS[method_name]["func"]
@@ -250,7 +259,7 @@ class CircleApp:
                 if "binary_thresh" in params and params["binary_thresh"] == 0:
                     params["binary_thresh"] = None # Let Otsu handle it
                     
-                if method_name == "Multi-scale Fusion":
+                if method_name == "多尺度边缘融合检测":
                     params["canny_pairs"] = [(30, 90), (50, 150), (80, 200)] 
                 
                 res = func(self.grey_np, params)
@@ -258,17 +267,19 @@ class CircleApp:
                 if res['success']:
                     out_rgb, txt = self._draw_result(self.color_np, res, method_name)
                     self.export_image_pil = Image.fromarray(out_rgb)
-                    self.display_image(self.export_image_pil, self.right_single_label, max_size=(800, 800))
+                    self.display_image(self.export_image_pil, self.right_single_label)
+                    self.right_single_text.config(text=txt, foreground="green")
                     
-                    self.status_var.set(f"Success! {txt} | Time: {res['diagnostics']['elapsed_ms']:.1f}ms")
+                    self.status_var.set(f"检测成功！ {txt} | 耗时: {res['diagnostics']['elapsed_ms']:.1f}ms")
                 else:
                     self.export_image_pil = None
-                    self.right_single_label.config(image="", text="Detection Failed:\n" + res['diagnostics']['message'])
-                    messagebox.showerror("Failed", "Current method failed to detect a valid circle.\nTry adjusting the parameters.")
-                    self.status_var.set(f"Failed: {res['diagnostics']['message']}")
+                    self.right_single_label.config(image="", text="检测失败：\n" + res['diagnostics']['message'])
+                    self.right_single_text.config(text=f"{method_name} - 检测失败", foreground="red")
+                    messagebox.showerror("失败", "当前方法未能检测到有效圆。\n请尝试调整参数。")
+                    self.status_var.set(f"检测失败: {res['diagnostics']['message']}")
                     
             else:
-                self.right_single_label.pack_forget()
+                self.right_single_frame.pack_forget()
                 self.right_grid_frame.pack(fill=tk.BOTH, expand=True)
                 
                 success_count = 0
@@ -280,27 +291,31 @@ class CircleApp:
                     m_params = {k: self.param_vars[k].get() for k in m_info["params"]}
                     if "binary_thresh" in m_params and m_params["binary_thresh"] == 0:
                         m_params["binary_thresh"] = None
-                    if m_name == "Multi-scale Fusion":
+                    if m_name == "多尺度边缘融合检测":
                         m_params["canny_pairs"] = [(30, 90), (50, 150), (80, 200)]
                         
                     res = func(self.grey_np, m_params)
                     out_rgb, txt = self._draw_result(self.color_np, res, m_name)
                     
-                    if res['success']: success_count += 1
+                    if res['success']: 
+                        success_count += 1
+                        self.grid_blocks[idx]["txt"].config(text=txt, foreground="green")
+                    else:
+                        self.grid_blocks[idx]["txt"].config(text=txt, foreground="red")
                     
                     pil_img = Image.fromarray(out_rgb)
-                    self.display_image(pil_img, self.grid_labels[idx], max_size=(400, 400))
+                    self.display_image(pil_img, self.grid_blocks[idx]["img"])
                     
                     row, col = idx // 2, idx % 2
                     collage[row*h:(row+1)*h, col*w:(col+1)*w] = out_rgb
                     
                 self.export_image_pil = Image.fromarray(collage)
-                self.status_var.set(f"Compare Mode completed. {success_count}/4 algorithms found circles.")
+                self.status_var.set(f"对比模式已完成。 {success_count}/4 种算法成功检测并找到了圆心。")
                 
             self.btn_export.config(state=tk.NORMAL if self.export_image_pil else tk.DISABLED)
             
         except Exception as e:
-            messagebox.showerror("Exception", f"An unexpected error occurred: {str(e)}")
+            messagebox.showerror("异常", f"发生意外错误：{str(e)}")
         finally:
             self.root.config(cursor="")
             
@@ -308,29 +323,29 @@ class CircleApp:
         if not self.export_image_pil:
             return
             
-        path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG file", "*.png")])
+        path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG 图像", "*.png")])
         if path:
             self.export_image_pil.save(path)
-            messagebox.showinfo("Export Successful", f"Saved rendering to: {path}")
-            self.status_var.set(f"Saved result block to {path}")
+            messagebox.showinfo("导出成功", f"结果图像已保存至： {path}")
+            self.status_var.set(f"已将结果视图保存为 {path}")
             
     def save_config(self):
         data = {k: v.get() for k, v in self.param_vars.items()}
-        path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON file", "*.json")])
+        path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON 配置文件", "*.json")])
         if path:
             with open(path, 'w') as f:
                 json.dump(data, f, indent=4)
-            self.status_var.set(f"Config globally saved to {path}")
+            self.status_var.set(f"当前配置参数已安全保存至 {path}")
             
     def load_config(self):
-        path = filedialog.askopenfilename(filetypes=[("JSON file", "*.json")])
+        path = filedialog.askopenfilename(filetypes=[("JSON 配置文件", "*.json")])
         if path:
             with open(path, 'r') as f:
                 data = json.load(f)
             for k, v in data.items():
                 if k in self.param_vars:
                     self.param_vars[k].set(v)
-            self.status_var.set(f"Parameters locally updated from {path}")
+            self.status_var.set(f"本地参数已成功从 {path} 中加载并覆盖更新。")
 
 if __name__ == "__main__":
     root = tk.Tk()
