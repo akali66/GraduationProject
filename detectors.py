@@ -14,34 +14,17 @@ def _get_base_response() -> Dict[str, Any]:
     }
 
 def detect_hough(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
-    """
-    【算法一：标准霍夫圆变换 (Hough Circle Transform)】
-    
-    原理说明：
-    霍夫圆变换（Hough Transform for Circles）是一种从图像提取圆的经典特征提取技术。
-    在OpenCV内部(HOUGH_GRADIENT)，它分为两个阶段：
-    1. 边缘检测：首先用Canny边缘检测找到所有边界点。算法会计算这些边界点的梯度方向。(受到 param1 控制)
-    2. 累加器投票：沿着梯度方向，将所有距离在范围内的点"投票"推算出圆心。当超过一定票数的点即可认为是圆心。 (受到 param2 控制)
-    最后，以确认的圆心为基准测算出对应的半径。此算法对简单的几何标准圆特别敏感且效果极好，但容易受到噪声影响，导致虚假报警(错误检测)。
-    
-    参数说明：
-    gray_image: 输入的 2D 灰度图
-    params 包含：
-        dp - 累加器分辨率与图像分辨率的反比。1.0表示相同，一般设为1.0~1.5左右。
-        minDist - 检测出的多个圆之间的最小距离。该值可以用来排除同心圆，或者只保留一个圆心。
-        param1 - Canny边缘检测上限阈值。用来判断哪些点算是强边缘点。
-        param2 - 累加器的阈值，越小找出的圆越多(包含假圆)，越大越严格。
-        minRadius / maxRadius - 限制查找的圆的半径大小范围。
-    """
-    response = _get_base_response()
-    start_time = time.time()
+    # 算法一：基于霍夫变换的圆检测 定义函数，返回一个字典
+
+    response = _get_base_response() # 创建答题卡
+    start_time = time.time()    # 开始计时
     
     try:
-        # 输入合法性验证
+        # 安全检查：是否是灰度图
         if gray_image is None or len(gray_image.shape) != 2:
             raise ValueError("输入的数据必须是 2D 的灰度 numpy 矩阵")
             
-        # 安全读取传入配置，若不存在则回退至推荐默认值
+        # 读取参数，没有则默认
         dp = params.get('dp', 1.2)
         minDist = params.get('minDist', 30)
         param1 = params.get('param1', 50)
@@ -49,11 +32,11 @@ def detect_hough(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
         minRadius = params.get('minRadius', 10)
         maxRadius = params.get('maxRadius', 100)
 
-        # 步骤A: 高斯滤波
+        # 步骤A: 高斯滤波 模糊处理
         # 应用 5x5 的高斯核做轻微的模糊(平滑处理)，这用来过滤掉图像里微小的噪点，防止产生误导边缘引发多余的圆
         blurred = cv2.GaussianBlur(gray_image, (5, 5), 0)
         
-        # 将测试Canny图提供给 debug（这里只是单独呈现，实际上cv2.HoughCircles内部也重新跑了此过程）
+        # 将测试Canny图提供给 debug （即将边缘存下来，放在答题卡里）
         response['debug']['edge_map'] = cv2.Canny(blurred, param1 // 2, param1)
         
         # 步骤B: 调用 HoughCircles 算法进行提取
@@ -70,30 +53,26 @@ def detect_hough(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
 
         # 步骤C: 对提取结果分析
         if circles is not None and len(circles) > 0:
-            # 四舍五入，并将数值转换为 16位无符号整型
+            # 将小数坐标转整数（像素坐标只能是整数）
             circles = np.uint16(np.around(circles))
             
-            # HoughCircles算法如果能检测出多个，它已经按照得票数（即其置信度）降序排列过了
-            # 所以索引为 [0, 0] 的圈也就是程序自认为的最优（即概率最高）候选圈。
+            # 取第一个圆（得票数最高的）
             best_circle = circles[0, 0]
             
-            # [0] 为 x 坐标， [1] 为 y 坐标 
-            response['center'] = [int(best_circle[0]), int(best_circle[1])]
-            # [2] 是拟合出的半径
-            response['radius'] = int(best_circle[2])
-            response['success'] = True
-            response['diagnostics']['message'] = f"共寻找到 {circles.shape[1]} 个候选圆，已抛出最优解。"
-            response['debug']['votes'] = circles[0] # 将所有的候选圆列表暴露于调试字典
+            response['center'] = [int(best_circle[0]), int(best_circle[1])] # 圆心坐标 [0] 为 x 坐标， [1] 为 y 坐标 
+            response['radius'] = int(best_circle[2]) # 圆的半径 [2] 为半径
+            response['success'] = True # 标记检测成功
+            response['diagnostics']['message'] = f"共寻找到 {circles.shape[1]} 个候选圆，已抛出最优解。" # 记录诊断信息
+            response['debug']['votes'] = circles[0] # 把所有候选圆也存起来
         else:
-            response['diagnostics']['message'] = "未在该图和参数下找到能构成完整的圆。"
+            response['diagnostics']['message'] = "未在该图和参数下找到能构成完整的圆。" # 没找到圆的情况
 
     except Exception as e:
-        response['success'] = False
-        response['diagnostics']['message'] = f"运行过程发生异常: {str(e)}"
+        response['success'] = False # 标记检测失败
+        response['diagnostics']['message'] = f"运行过程发生异常: {str(e)}" # 捕获并记录异常信息
         
     finally:
-        # 统计本函数的整体执行并转换为毫秒
-        response['diagnostics']['elapsed_ms'] = (time.time() - start_time) * 1000.0
+        response['diagnostics']['elapsed_ms'] = (time.time() - start_time) * 1000.0 # 记录耗时
         return response
 
 def detect_min_enclosing(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
