@@ -76,60 +76,53 @@ def detect_hough(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
         return response
 
 def detect_min_enclosing(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
-    """
-    【算法二：轮廓最小外接圆 (Minimum Enclosing Circle)】
-    
-    原理说明：
-    这个算法不是去猜测几何关系，而是单纯根据物体的边界来进行物理上的“包裹”。
-    1. 图像二值化：首先将黑白图像通过阈值强制变为纯黑和纯白。可以指定特定阈值，或者由于光照不匀使用“大津法 (Otsu)”自动推算最佳阈值以便区分背景与钻孔。
-    2. 轮廓提取：寻找到图像中白色区块构成的封闭边缘线条（即轮廓, Contours）。
-    3. 获取最大实体：计算每一个轮廓所覆盖的面积，只保留面积最大的那个（因为我们的钻孔通常是画面主体）。
-    4. 画圆：数学上求解这一个不规则多边形轮廓能被完全包合所需要的一个最小的几何正圆(圆心+半径)。
-    优点：即使钻孔明显发生了破损、椭圆变形，或者是被污泥掩盖了一角，基于物体轮廓提取的包络圆也能算出一个粗略的最短几何外沿。
-    """
+
+    # 初始化
     response = _get_base_response()
     start_time = time.time()
     
     try:
         if gray_image is None or len(gray_image.shape) != 2:
-            raise ValueError("输入的数据必须是 2D 的灰度 numpy 矩阵")
+            raise ValueError("输入的数据必须是 2D 的灰度 numpy 矩阵") # 安全检查：是否是灰度图
 
-        binary_thresh = params.get('binary_thresh', None)
-        min_area = params.get('min_area', 100) # 将过小面积(类似于噪音碎屑)筛除的保护面积
+        binary_thresh = params.get('binary_thresh', None) # 黑白分割的阈值
+        min_area = params.get('min_area', 100) # 最小面积，小于100的忽略
 
-        # 步骤 1: 将图像进行二值化(转黑白)
+        # 二值化：把灰度图变成只有纯黑(0)和纯白(255)的图
         if binary_thresh is None:
-            # 若传入空或0，开启智能“大津法 (Otsu)”寻找阈值前，需先引入平滑防止噪点引发切分翻车
+            # 若传入空或0，需先防止噪点引发 切分翻车
             blurred = cv2.GaussianBlur(gray_image, (5, 5), 0)
-            # 在 Otsu 模式下，设定的0, 255 参数会被自动重新计算替代
+            # 用大津法自动找最佳分割点
             _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         else:
-            # 根据用户指定的数值直接实施一刀切。超过此数值为白(255)，反之为黑(0)
+            # 直接按这个阈值分割
             _, thresh = cv2.threshold(gray_image, binary_thresh, 255, cv2.THRESH_BINARY)
 
-        # 记录二值图，用于UI显示与检验
+        # 保存二值图
         response['debug']['edge_map'] = thresh
 
-        # 步骤 2: 调用 findContours 寻找外围轮廓(RETR_EXTERNAL：仅提取最外层)
+        # 找轮廓，调用 findContours 寻找外围轮廓(RETR_EXTERNAL：仅提取最外层)
         contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+        # 检查是否找到轮廓
         if not contours:
             response['success'] = False
             response['diagnostics']['message'] = "图像二值化后并未发现构成团块的封闭线条。"
             return response
 
-        # 步骤 3: 提取有效区域并将轮廓以像素面积大小列出 
+        # 过滤小轮廓，计算每个轮廓的面积，去掉太小的（可能是噪点）。cv2.contourArea(c)：计算轮廓包围的面积
         valid_contours = [c for c in contours if cv2.contourArea(c) >= min_area]
         
+        # 检查过滤后结果
         if not valid_contours:
             response['success'] = False
             response['diagnostics']['message'] = "找到的团块太微小，没有满足面积限定的对象。"
             return response
 
-        # 提取面积最大的主体
+        # 找最大的轮廓
         largest_contour = max(valid_contours, key=cv2.contourArea)
         
-        # 步骤 4: 针对这个最大不规则闭环物块，求其能被容纳进内的最小化同心圆
+        # 计算最小外接圆
         (x, y), radius = cv2.minEnclosingCircle(largest_contour)
 
         response['center'] = [int(x), int(y)]
