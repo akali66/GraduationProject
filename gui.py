@@ -26,7 +26,7 @@ METHODS = {
     },
     "轮廓最小外接圆": {
         "func": detect_min_enclosing,
-        "params": ["binary_thresh", "min_area"]
+        "params": ["binary_thresh", "min_area", "max_area_ratio", "min_circularity", "selection_mode"]
     },
     "基于Canny边缘的单尺度霍夫检测": {
         "func": detect_canny_hough,
@@ -47,6 +47,9 @@ PARAM_DEF = {
     "maxRadius": {"label": "最大半径", "type": "int", "range": (10, 500), "default": 300},
     "binary_thresh": {"label": "二值化阈值(0=大津法)", "type": "int", "range": (0, 255), "default": 0},
     "min_area": {"label": "最小轮廓面积", "type": "int", "range": (10, 10000), "default": 100},
+    "max_area_ratio": {"label": "最大面积比例极限", "type": "float", "range": (0.1, 1.0), "default": 0.95, "step": 0.01},
+    "min_circularity": {"label": "最小圆度", "type": "float", "range": (0.01, 1.0), "default": 0.2, "step": 0.01},
+    "selection_mode": {"label": "选取策略(面积|圆度|中心)", "type": "int", "range": (1, 3), "default": 1},
     "canny_low": {"label": "Canny 边缘低阈值", "type": "int", "range": (0, 255), "default": 50},
     "canny_high": {"label": "Canny 边缘高阈值", "type": "int", "range": (0, 255), "default": 150},
     "fusion_thresh": {"label": "融合阈值", "type": "float", "range": (0.1, 0.9), "default": 0.3, "step": 0.05}

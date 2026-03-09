@@ -87,9 +87,11 @@ def detect_min_enclosing(gray_image: np.ndarray, params: dict) -> Dict[str, Any]
 
         binary_thresh = params.get('binary_thresh', None) # 黑白分割的阈值
         min_area = params.get('min_area', 100) # 最小面积，小于100的忽略
+        max_area_ratio = params.get('max_area_ratio', 0.95) # 最大面积比例
+        min_circularity = params.get('min_circularity', 0.2) # 最小圆度
 
         # 二值化：把灰度图变成只有纯黑(0)和纯白(255)的图
-        if binary_thresh is None:
+        if binary_thresh is None or binary_thresh == 0:
             # 若传入空或0，需先防止噪点引发 切分翻车
             blurred = cv2.GaussianBlur(gray_image, (5, 5), 0)
             # 用大津法自动找最佳分割点
@@ -101,26 +103,66 @@ def detect_min_enclosing(gray_image: np.ndarray, params: dict) -> Dict[str, Any]
         # 保存二值图
         response['debug']['edge_map'] = thresh
 
-        # 找轮廓，调用 findContours 寻找外围轮廓(RETR_EXTERNAL：仅提取最外层)
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # 找轮廓，采用 RETR_LIST 提取所有层级轮廓，避免被大面积背景层包裹的内部孔洞被忽略
+        contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
-        # 检查是否找到轮廓
         if not contours:
             response['success'] = False
-            response['diagnostics']['message'] = "图像二值化后并未发现构成团块的封闭线条。"
+            response['diagnostics']['message'] = "图像二值化后并未发现可构成团块的封闭线条。"
             return response
 
-        # 过滤小轮廓，计算每个轮廓的面积，去掉太小的（可能是噪点）。cv2.contourArea(c)：计算轮廓包围的面积
-        valid_contours = [c for c in contours if cv2.contourArea(c) >= min_area]
+        # 计算图片总面积 用于后续的面积上限检查
+        img_area = gray_image.shape[0] * gray_image.shape[1]
+        img_center_x = gray_image.shape[1] / 2.0
+        img_center_y = gray_image.shape[0] / 2.0
         
-        # 检查过滤后结果
-        if not valid_contours:
+        selection_mode = params.get('selection_mode', 1)  # 1: 面积最大, 2: 最接近正圆, 3: 距离中心最近
+        valid_contours_info = []
+
+        # 智能轮廓筛选
+        for c in contours:
+            area = cv2.contourArea(c)
+            # 条件1：面积范围过滤，（去掉背景）
+            if min_area <= area <= img_area * max_area_ratio:
+                perimeter = cv2.arcLength(c, True)
+                # 条件2：计算圆度，初步淘汰那些过于细长或严重不规则的干涉杂块
+                if perimeter > 0:
+                    circularity = 4 * np.pi * area / (perimeter * perimeter)
+                    if circularity > min_circularity:  # 设定一个极其宽松的圆度底线
+                        # 计算轮廓质心以备 "中心距离" 策略使用
+                        M = cv2.moments(c)
+                        if M["m00"] != 0:
+                            cx = int(M["m10"] / M["m00"])
+                            cy = int(M["m01"] / M["m00"])
+                        else:
+                            cx, cy = 0, 0
+                        
+                        dist_to_center = ((cx - img_center_x) ** 2 + (cy - img_center_y) ** 2) ** 0.5
+                        
+                        valid_contours_info.append({
+                            "contour": c,
+                            "area": area,
+                            "circularity": circularity,
+                            "dist_to_center": dist_to_center
+                        })
+        
+        if not valid_contours_info:
             response['success'] = False
-            response['diagnostics']['message'] = "找到的团块太微小，没有满足面积限定的对象。"
+            response['diagnostics']['message'] = "未找到满足面积限定和基本形态（圆度过低或近似全屏框）的对象。"
             return response
 
-        # 找最大的轮廓
-        largest_contour = max(valid_contours, key=cv2.contourArea)
+        # 找满足上述基本常理过滤后，从候选列表中挑选最终目标的策略
+        if selection_mode == 1:
+            best_target = max(valid_contours_info, key=lambda x: x["area"])
+            strategy_name = "最大面积"
+        elif selection_mode == 2:
+            best_target = max(valid_contours_info, key=lambda x: x["circularity"])
+            strategy_name = "最佳圆度"
+        else:
+            best_target = min(valid_contours_info, key=lambda x: x["dist_to_center"])
+            strategy_name = "最靠近视图中心"
+
+        largest_contour = best_target["contour"]
         
         # 计算最小外接圆
         (x, y), radius = cv2.minEnclosingCircle(largest_contour)
@@ -128,7 +170,7 @@ def detect_min_enclosing(gray_image: np.ndarray, params: dict) -> Dict[str, Any]
         response['center'] = [int(x), int(y)]
         response['radius'] = int(radius)
         response['success'] = True
-        response['diagnostics']['message'] = f"从 {len(valid_contours)} 处有效轮廓中寻找到了主目标并实行成功拟合。"
+        response['diagnostics']['message'] = f"在 {len(valid_contours_info)} 个有效轮廓中，使用[{strategy_name}]策略完成目标提取并拟合。"
 
     except Exception as e:
         response['success'] = False
