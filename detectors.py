@@ -87,8 +87,8 @@ def detect_min_enclosing(gray_image: np.ndarray, params: dict) -> Dict[str, Any]
 
         binary_thresh = params.get('binary_thresh', None) # 黑白分割的阈值
         min_area = params.get('min_area', 100) # 最小面积，小于100的忽略
-        max_area_ratio = params.get('max_area_ratio', 0.95) # 最大面积比例
-        min_circularity = params.get('min_circularity', 0.2) # 最小圆度
+        max_area_ratio = params.get('max_area_ratio', 0.95) # 最大面积比例（排除占画面95%以上的轮廓）
+        min_circularity = params.get('min_circularity', 0.2) # 最小圆度（排除圆度低于0.2的轮廓）
 
         # 二值化：把灰度图变成只有纯黑(0)和纯白(255)的图
         if binary_thresh is None or binary_thresh == 0:
@@ -103,7 +103,7 @@ def detect_min_enclosing(gray_image: np.ndarray, params: dict) -> Dict[str, Any]
         # 保存二值图
         response['debug']['edge_map'] = thresh
 
-        # 找轮廓，采用 RETR_LIST 提取所有层级轮廓，避免被大面积背景层包裹的内部孔洞被忽略
+        # 找轮廓，采用 RETR_LIST 提取所有层级轮廓，避免被大面积背景层包裹的内部孔洞被忽略（能同时找到外轮廓和内轮廓，不会遗漏）
         contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
         if not contours:
@@ -113,6 +113,7 @@ def detect_min_enclosing(gray_image: np.ndarray, params: dict) -> Dict[str, Any]
 
         # 计算图片总面积 用于后续的面积上限检查
         img_area = gray_image.shape[0] * gray_image.shape[1]
+        # 计算图片中心坐标，为"距离中心最近"策略做准备。
         img_center_x = gray_image.shape[1] / 2.0
         img_center_y = gray_image.shape[0] / 2.0
         
@@ -128,15 +129,16 @@ def detect_min_enclosing(gray_image: np.ndarray, params: dict) -> Dict[str, Any]
                 # 条件2：计算圆度，初步淘汰那些过于细长或严重不规则的干涉杂块
                 if perimeter > 0:
                     circularity = 4 * np.pi * area / (perimeter * perimeter)
-                    if circularity > min_circularity:  # 设定一个极其宽松的圆度底线
+                    if circularity > min_circularity:
                         # 计算轮廓质心以备 "中心距离" 策略使用
-                        M = cv2.moments(c)
+                        M = cv2.moments(c) # 计算轮廓矩
                         if M["m00"] != 0:
-                            cx = int(M["m10"] / M["m00"])
-                            cy = int(M["m01"] / M["m00"])
+                            cx = int(M["m10"] / M["m00"])   # 质心x坐标
+                            cy = int(M["m01"] / M["m00"])   # 质心y坐标
                         else:
                             cx, cy = 0, 0
                         
+                        # 欧几里得距离公式，计算质心到图片中心的距离
                         dist_to_center = ((cx - img_center_x) ** 2 + (cy - img_center_y) ** 2) ** 0.5
                         
                         valid_contours_info.append({
