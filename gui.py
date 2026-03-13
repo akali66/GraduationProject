@@ -14,10 +14,13 @@ from detectors import (
 )
 
 try:
-    from eval_metrics import evaluate_circle
-except ImportError:
-    def evaluate_circle(gray, x, y, r):
-        return 0.0, 0.0
+    from eval_metrics import compute_edge_coverage, compute_hough_confidence
+except ImportError as e:
+    import traceback
+    traceback.print_exc()
+    # 兼容没有导入包的早期环境阶段
+    def compute_edge_coverage(*args, **kwargs): return 0.0
+    def compute_hough_confidence(*args, **kwargs): return 0.0
 
 METHODS = {
     "霍夫圆变换": {
@@ -136,7 +139,7 @@ class CircleApp:
         self.btn_run.pack(pady=10, fill=tk.X, padx=10)
         
         # 将分析好的连带识别圆截出存至磁盘
-        self.btn_export = ttk.Button(self.mid_frame, text="导出结果 (PNG)", command=self.export_results, state=tk.DISABLED)
+        self.btn_export = ttk.Button(self.mid_frame, text="保存当前结果图", command=self.export_results, state=tk.DISABLED)
         self.btn_export.pack(pady=(0,10), fill=tk.X, padx=10)
         
         ttk.Separator(self.mid_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
@@ -164,14 +167,14 @@ class CircleApp:
             block.grid(row=i//2, column=i%2, sticky="nsew", padx=2, pady=2)
             lbl_img = ttk.Label(block, text=f"图块 {i+1} 图像", anchor=tk.CENTER)
             lbl_img.pack(fill=tk.BOTH, expand=True)
-            lbl_txt = ttk.Label(block, text=f"图块 {i+1} 信息", anchor=tk.CENTER, font=("Helvetica", 9))
+            lbl_txt = ttk.Label(block, text=f"图块 {i+1} 信息", anchor=tk.CENTER, justify=tk.CENTER, font=("Helvetica", 9))
             lbl_txt.pack(side=tk.BOTTOM, fill=tk.X)
             self.grid_blocks.append({"img": lbl_img, "txt": lbl_txt})
             
-        self.right_grid_frame.columnconfigure(0, weight=1)
-        self.right_grid_frame.columnconfigure(1, weight=1)
-        self.right_grid_frame.rowconfigure(0, weight=1)
-        self.right_grid_frame.rowconfigure(1, weight=1)
+        self.right_grid_frame.columnconfigure(0, weight=1, uniform="col")
+        self.right_grid_frame.columnconfigure(1, weight=1, uniform="col")
+        self.right_grid_frame.rowconfigure(0, weight=1, uniform="row")
+        self.right_grid_frame.rowconfigure(1, weight=1, uniform="row")
         
         # --- BOTTOM PANE ---
         self.status_var = tk.StringVar(value="准备就绪")
@@ -239,13 +242,17 @@ class CircleApp:
         self.status_var.set(f"已加载: {os.path.basename(path)} | 尺寸: {self.color_np.shape[1]}x{self.color_np.shape[0]}")
         self.btn_export.config(state=tk.DISABLED)
         
-    def display_image(self, pil_img, label_widget):
+    def display_image(self, pil_img, label_widget, target_size=None):
         """
         动态计算显示区域的大小，并将传入的高清原图通过高级重采样按比例缩放塞进显示区，防止程序卡死变型
         """
-        # update_idletasks 让TK强制结算并绘制前置积压事件，从而能拿到它接下来准确占用的坐标空间大小 winfo_width
-        self.root.update_idletasks()
-        w, h = label_widget.winfo_width(), label_widget.winfo_height()
+        if target_size is not None:
+            w, h = target_size
+        else:
+            # update_idletasks 让TK强制结算并绘制前置积压事件，从而能拿到它接下来准确占用的坐标空间大小 winfo_width
+            self.root.update_idletasks()
+            w, h = label_widget.winfo_width(), label_widget.winfo_height()
+            
         # 万一窗口还在微小化初始态，给个默认保底画幅以防缩放除错
         if w < 50 or h < 50:
             w, h = 600, 600
@@ -266,6 +273,8 @@ class CircleApp:
         """
         res_img = cv_rgb.copy()
         text = ""
+        result['method'] = method_name # 记录当前用的算法名进字典，方便后续制表导出
+        
         if result['success']:
             x, y = result['center']
             r = result['radius']
@@ -274,13 +283,66 @@ class CircleApp:
             # Draw center cross (Green)
             cv2.drawMarker(res_img, (x, y), (0, 255, 0), cv2.MARKER_CROSS, max(10, int(r * 0.2)), 2)
             
-            cov, conf = evaluate_circle(self.grey_np, x, y, r)
-            text = f"{method_name}   圆心:({x},{y})   半径:{r}   匹配度:{conf:.1f}%"
+            # 使用新构建的边缘重合度和置信度进行评估
+            edge_map = result.get('debug', {}).get('edge_map')
+            if edge_map is not None:
+                cov = compute_edge_coverage((x, y), r, edge_map)
+                conf = compute_hough_confidence(result.get('debug', {}), (x, y), r)
+            else:
+                cov, conf = 0.0, 0.0
+                
+            result['coverage'] = cov
+            result['confidence'] = conf
+            
+            text = f"{method_name}\n中心:({x},{y}) 半径:{r} | 覆盖率:{cov*100:.1f}% | 置信度:{conf*100:.1f}%"
         else:
-            text = f"{method_name} - 检测失败"
+            text = f"{method_name}\n检测失败"
             
         # 不再在此处绘制文字，而是仅仅返回渲染好标记的图像和提取出的文本供外部 Label 使用
         return res_img, text
+
+    def _create_export_image_with_text(self, pil_img, text):
+        """将文字拼接到PIL图下方，生成带有文字的导出专用图像。"""
+        w, h = pil_img.size
+        # 为了兼容不同的PIL版本和系统环境，手动测算文字行数预留高度
+        lines = text.split('\n')
+        line_height = max(30, int(w * 0.03)) 
+        text_h = len(lines) * line_height
+        text_margin = max(15, int(w * 0.02))
+        
+        # 建立一张白色背景的新图 (高 = 原图高 + 边距 + 文字区高度 + 边距)
+        full_h = h + text_margin * 2 + text_h
+        new_img = Image.new('RGB', (w, full_h), color=(255, 255, 255))
+        new_img.paste(pil_img, (0, 0))
+        
+        draw = ImageDraw.Draw(new_img)
+        # 尝试加载中文字体，失败则使用系统级默认字体
+        try:
+            # Win下的微软雅黑
+            font = ImageFont.truetype("msyh.ttc", line_height - 5)
+        except Exception:
+            try:
+                # 备用黑体
+                font = ImageFont.truetype("simhei.ttf", line_height - 5)
+            except Exception:
+                font = ImageFont.load_default()
+                
+        # 逐行写字，保持居中
+        y_cursor = h + text_margin
+        for line in lines:
+            try:
+                # 新版 Pillow
+                bbox = draw.textbbox((0, 0), line, font=font)
+                line_w = bbox[2] - bbox[0]
+            except Exception:
+                # 旧版
+                line_w = font.getsize(line)[0] if hasattr(font, 'getsize') else len(line)*15
+                
+            x_cursor = max(0, (w - line_w) // 2)
+            draw.text((x_cursor, y_cursor), line, fill=(0, 0, 0), font=font)
+            y_cursor += line_height
+            
+        return new_img
 
     def run_detection(self):
         """
@@ -321,9 +383,14 @@ class CircleApp:
                 # 处理绘图渲染以及提示信息的着色
                 if res['success']:
                     out_rgb, txt = self._draw_result(self.color_np, res, method_name)
-                    self.export_image_pil = Image.fromarray(out_rgb)
-                    self.display_image(self.export_image_pil, self.right_single_label)
+                    
+                    # 界面上依然只展示原图不受文字框影响，文字交由Label展示
+                    pil_display = Image.fromarray(out_rgb)
+                    self.display_image(pil_display, self.right_single_label)
                     self.right_single_text.config(text=txt, foreground="green")  # 成功染绿
+                    
+                    # 导出对象则单独生成一张带有白底黑字的拼接全景图
+                    self.export_image_pil = self._create_export_image_with_text(pil_display, txt)
                     
                     self.status_var.set(f"检测成功！ {txt} | 耗时: {res['diagnostics']['elapsed_ms']:.1f}ms")
                 else:
@@ -337,11 +404,17 @@ class CircleApp:
             else:
                 self.right_single_frame.pack_forget()
                 self.right_grid_frame.pack(fill=tk.BOTH, expand=True)
+                self.root.update_idletasks()
+                
+                # 预先获取统一的绘图区域大小，避免在循环中因前面图像的置入导致后续方块尺寸剧变
+                grid_w = self.right_grid_frame.winfo_width() // 2 - 10
+                grid_h = self.right_grid_frame.winfo_height() // 2 - 30 # 留出文本的高
+                target_size = (grid_w, grid_h)
                 
                 success_count = 0
-                h, w, c = self.color_np.shape
-                # 为了支持导出 PNG 对比大图，需要事先初始化一张两倍长跨度的空白矩阵图供稍后拼接粘合用
-                collage = np.zeros((h*2, w*2, c), dtype=np.uint8)
+                
+                # 为了支持包含单独文字的对比大图导出，收集所有的带文字图块
+                collage_blocks = []
                 
                 # 轮询自带的四个特征提取方法执行侦测
                 for idx, (m_name, m_info) in enumerate(METHODS.items()):
@@ -363,17 +436,35 @@ class CircleApp:
                     
                     # 放入屏幕矩阵控件中
                     pil_img = Image.fromarray(out_rgb)
-                    self.display_image(pil_img, self.grid_blocks[idx]["img"])
+                    self.display_image(pil_img, self.grid_blocks[idx]["img"], target_size=target_size)
                     
-                    # 以数学位移方式填合到我们大面积生成的超大照片 `collage` 图之中(用于可能存在的保存逻辑)
-                    row, col = idx // 2, idx % 2
-                    collage[row*h:(row+1)*h, col*w:(col+1)*w] = out_rgb
+                    # 生成用于导出的单带字小卡片放入数组
+                    collage_blocks.append(self._create_export_image_with_text(pil_img, txt))
                     
-                self.export_image_pil = Image.fromarray(collage)
+                # 以具有小缝隙的方式将四张图卡进行拼接 (用于保存的导出图)
+                if len(collage_blocks) == 4:
+                    block_w, block_h = collage_blocks[0].size
+                    padding = int(block_w * 0.02) # 用于分清边界的间隙
+                    bg_w = block_w * 2 + padding * 3
+                    bg_h = block_h * 2 + padding * 3
+                    # 使用容易区分边境的淡灰色作为分隔背景
+                    collage_img = Image.new('RGB', (bg_w, bg_h), color=(230, 230, 230))
+                    
+                    for idx, b_img in enumerate(collage_blocks):
+                        row, col = idx // 2, idx % 2
+                        x_pos = padding + col * (block_w + padding)
+                        y_pos = padding + row * (block_h + padding)
+                        collage_img.paste(b_img, (x_pos, y_pos))
+                        
+                    self.export_image_pil = collage_img
+                    
                 self.status_var.set(f"对比模式已完成。 {success_count}/4 种算法成功检测并找到了圆心。")
                 
             # 开启允许按动底部的导出图片操作并恢复指针形状    
-            self.btn_export.config(state=tk.NORMAL if self.export_image_pil else tk.DISABLED)
+            self.btn_export.config(
+                state=tk.NORMAL if self.export_image_pil else tk.DISABLED,
+                text="保存对比图" if self.compare_var.get() else "保存当前结果图"
+            )
             
         except Exception as e:
             messagebox.showerror("异常", f"发生意外错误：{str(e)}")
@@ -390,7 +481,7 @@ class CircleApp:
             self.export_image_pil.save(path)
             messagebox.showinfo("导出成功", f"结果图像已保存至： {path}")
             self.status_var.set(f"已将结果视图保存为 {path}")
-            
+
     def save_config(self):
         """将用户自调好的各项超参数一键打包储存在一个json文件中方便长期继承"""
         data = {k: v.get() for k, v in self.param_vars.items()}
