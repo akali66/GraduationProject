@@ -183,43 +183,34 @@ def detect_min_enclosing(gray_image: np.ndarray, params: dict) -> Dict[str, Any]
         return response
 
 def detect_canny_hough(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
-    """
-    【算法三：基于 Canny 边缘的单尺度霍夫检测】
-    
-    原理说明：
-    算法一是直接把图片塞给霍夫寻找，这对于某些对比度低的图片可能会漏掉很多本该发现的边缘。
-    此进阶算法则将流程拆解为独立的精准控制步骤：
-    1. Canny 边缘检测：我们先行介入，以自定义的精细参数将弱边缘(如锈迹、背景纹理)筛选掉，并把所有真切的强物理轮廓抠出来形成“二进制线条线稿图”。
-    2. 形态学闭运算(Morphological Close)：通过形态学操作(膨胀然后腐蚀)能将 Canny 检测中细碎、由于缺口断裂的、并不连贯的零碎线段重新焊接连在一起。提高其组成圆的潜力。
-    3. 后接霍夫变换：将处理好的这幅“完美线稿”，投喂给参数极低要求标准（既然线稿被筛选过已保证真实了，我们便可以让霍夫的审核标准放低不卡控）的霍夫圆算法进行圆心还原。
-    优势：这是算法 1 与形态学修复相搭配的优质组合工作流。
-    """
+    # 初始化
     response = _get_base_response()
     start_time = time.time()
     
     try:
         if gray_image is None or len(gray_image.shape) != 2:
-            raise ValueError("输入的数据必须是 2D 的灰度 numpy 矩阵")
+            raise ValueError("输入的数据必须是 2D 的灰度 numpy 矩阵") # 安全检查
 
-        canny_low = params.get('canny_low', 50)     # 判断模糊边缘点
-        canny_high = params.get('canny_high', 150)  # 判断首发强边缘点
-        use_morph = params.get('morphological_close', True)
+        canny_low = params.get('canny_low', 50)     # 判断模糊边缘点，低阈值：弱边缘判断
+        canny_high = params.get('canny_high', 150)  # 判断首发强边缘点，高阈值：强边缘判断
+        use_morph = params.get('morphological_close', True) # 是否使用形态学修复,是否修复断裂的边缘
 
-        dp = params.get('dp', 1.2)
-        minDist = params.get('minDist', 30)
-        param1 = params.get('param1', 50)
-        param2 = params.get('param2', 30)
-        minRadius = params.get('minRadius', 10)
-        maxRadius = params.get('maxRadius', 100)
+        dp = params.get('dp', 1.2)                  # 检测精度
+        minDist = params.get('minDist', 30)         # 圆之间的最小距离
+        param1 = params.get('param1', 50)           # 霍夫内部使用的 Canny 边缘检测的高阈值（我们在外部已经做了 Canny，所以这里设置得非常低，甚至1，来让它完全信任我们提供的边缘图，不再自己做二次边缘判断）
+        param2 = params.get('param2', 30)           # 投票阈值
+        minRadius = params.get('minRadius', 10)     # 最小半径
+        maxRadius = params.get('maxRadius', 100)    # 最大半径
 
         # 步骤 1：自行执行并计算 Canny 以便对原图的边际精准抽取
-        blurred = cv2.GaussianBlur(gray_image, (5, 5), 0)
-        edges = cv2.Canny(blurred, canny_low, canny_high)
+        blurred = cv2.GaussianBlur(gray_image, (5, 5), 0)   # 先高斯模糊去噪
+        edges = cv2.Canny(blurred, canny_low, canny_high)   # 使用自定义阈值的Canny边缘检测
         
-        # 步骤 2：对不连贯的点画进行拼接加粗（闭运算）
+        # 步骤 2：对不连贯的点画进行拼接加粗（闭运算） ：形态学闭运算（修复边缘断裂）
         if use_morph:
-            # 采用 5x5 圆形核心对断裂的缝隙进行弥补
+            # 创建5x5的椭圆形结构元素，椭圆形，适合修复圆形边缘，操作范围，越大连接能力越强
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+            # 先膨胀后腐蚀，连接断裂处
             edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
 
         response['debug']['edge_map'] = edges
@@ -239,7 +230,9 @@ def detect_canny_hough(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
         )
 
         if circles is not None and len(circles) > 0:
+            # 坐标四舍五入转为整数
             circles = np.uint16(np.around(circles))
+            # 取第一个圆（置信度最高）
             best_circle = circles[0, 0]
             response['center'] = [int(best_circle[0]), int(best_circle[1])]
             response['radius'] = int(best_circle[2])
