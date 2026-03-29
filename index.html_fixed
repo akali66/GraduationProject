@@ -1,0 +1,423 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>钻孔图像圆心鲁棒检测</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { touch-action: none; }
+        .drag-active { border-color: #3b82f6 !important; background-color: #eff6ff !important; }
+        .loader {
+            border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%;
+            width: 20px; height: 20px; animation: spin 1s linear infinite; display: none; margin: 0 auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        input[type=range] {
+            -webkit-appearance: none; width: 100%; background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 14px; width: 14px; border-radius: 50%;
+            background: #3b82f6; cursor: pointer; margin-top: -4.5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 5px; cursor: pointer; background: #cbd5e1; border-radius: 99px;
+        }
+        input[type=range]:focus { outline: none; }
+    </style>
+</head>
+<body class="bg-slate-50 w-screen h-screen overflow-hidden flex flex-col font-sans text-slate-800">
+
+    <header class="bg-white shadow-sm border-b border-slate-200 h-14 flex-shrink-0 flex items-center justify-between px-4 sm:px-6 w-full z-10 relative">
+        <h1 class="text-xl font-bold text-slate-800 flex items-center gap-2 truncate">
+            <svg class="w-6 h-6 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+            钻孔图像圆心鲁棒检测
+        </h1>
+        <div class="flex gap-2 shrink-0">
+            <button id="exportResultBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors shadow-sm disabled:opacity-50">保存当前结果图</button>
+            <button id="exportCsvBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors shadow-sm disabled:opacity-50">导出CSV</button>
+        </div>
+    </header>
+
+    <main class="flex-1 w-full flex overflow-hidden p-2 sm:p-4 gap-3">
+        
+        <aside class="w-[320px] md:w-[380px] lg:w-[440px] shrink-0 flex flex-col gap-3 h-full">
+            
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-2.5 shrink-0 flex gap-2 relative">
+                <div id="dropZone" class="flex-1 border-2 border-dashed border-slate-300 rounded overflow-hidden text-center cursor-pointer hover:bg-slate-50 transition-colors relative flex items-center justify-center p-2 min-h-[90px]">
+                    <input type="file" id="fileInput" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/png, image/jpeg">
+                    <p class="text-xs text-slate-500 font-medium px-2 leading-relaxed">点击此处或拖拽图片<br>加载图像</p>
+                </div>
+                <div id="previewContainer" class="w-24 h-auto hidden shadow-inner bg-slate-900 rounded border flex items-center justify-center relative group shrink-0">
+                    <img id="previewImg" class="max-w-full max-h-[90px] object-contain" alt="预览">
+                    <div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center text-white text-[10px] opacity-0 hover:opacity-100 transition-opacity pointer-events-none">源素材</div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-3 flex flex-col flex-1 min-h-0">
+                
+                <div class="mb-3 shrink-0">
+                    <label class="block text-sm font-bold text-slate-800 mb-1">核心检测算法：</label>
+                    <select id="methodSelect" class="w-full text-sm border-slate-300 rounded shadow-sm border py-2 px-2 focus:ring-1 focus:ring-blue-500 bg-slate-50 outline-none">
+                        <option value="method1">方法一：霍夫圆变换（Hough Circle）</option>
+                        <option value="method2">方法二：轮廓最小外接圆（Min Enclosing Circle）</option>
+                        <option value="method3">方法三：基于Canny边缘的单尺度霍夫检测</option>
+                        <option value="method4" selected>方法四：YOLOv8</option>
+                    </select>
+                </div>
+
+                <div class="flex flex-col flex-1 min-h-0 min-w-0 bg-slate-50/50 border border-slate-200 rounded">
+                    <div class="flex justify-between items-center bg-slate-100 px-2.5 py-1.5 border-b border-slate-200 shrink-0">
+                        <span class="text-xs font-semibold text-slate-700">算法参数精准滑块控制台</span>
+                        <button id="resetParamsBtn" class="text-[10px] text-blue-600 hover:text-blue-800 underline active:scale-95 transition-transform">恢复默认</button>
+                    </div>
+                    <div class="flex-1 overflow-y-auto w-full p-2 space-y-1" id="paramsArea">
+                    </div>
+                </div>
+
+                <div class="mt-3 shrink-0 bg-blue-50/70 border border-blue-100 rounded p-2 mb-3">
+                    <label class="flex items-center text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" id="compareMode" class="rounded text-blue-600 mr-2 h-4 w-4 border-slate-300 group focus:ring-0">
+                        <span class="font-bold text-blue-800">是否开启对比模式</span>
+                    </label>
+                </div>
+
+                <button id="detectBtn" class="shrink-0 w-full bg-slate-800 hover:bg-slate-900 text-white py-2.5 rounded font-bold shadow flex justify-center items-center gap-2 transition-all active:translate-y-px">
+                    <svg class="w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3v18l15-9L5 3z"/></svg>
+                    <span>开始检测</span>
+                    <div id="loadingIndicator" class="loader ml-1"></div>
+                </button>
+            </div>
+        </aside>
+
+        <section class="flex-1 bg-slate-200/80 rounded-lg p-2 border border-slate-300 shadow-inner flex flex-col relative w-full h-full overflow-hidden" id="resultsContainer">
+            <div id="placeholder" class="absolute inset-0 flex flex-col text-slate-400 items-center justify-center pointer-events-none p-4">
+                <svg class="w-16 h-16 opacity-30 mb-2" fill="currentColor" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                <p class="text-sm font-semibold">等待加载图像与系统算法运行</p>
+            </div>
+            
+            <div id="singleResultView" class="hidden w-full h-full"></div>
+            <div id="compareResultsView" class="hidden grid-cols-2 grid-rows-2 gap-2 w-full h-full"></div>
+        </section>
+
+    </main>
+
+    <div id="statusBar" class="bg-slate-900 text-slate-300 text-[11px] px-4 h-7 flex items-center justify-between z-20 shrink-0 select-none">
+        <span id="statusInfo" class="truncate max-w-[50%]">就绪...</span>
+        <span id="metricsInfo" class="font-mono text-emerald-400 truncate max-w-[50%]">loading...</span>
+    </div>
+
+    <div id="imageModal" class="fixed inset-0 bg-slate-900/95 z-50 hidden flex-col items-center justify-center p-4 backdrop-blur-sm">
+        <button id="closeModal" class="absolute top-4 right-6 text-white p-2 hover:bg-white/20 rounded-full transition-colors"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+        <img id="modalImage" class="max-w-full max-h-full object-contain rounded shadow-2xl bg-slate-50 border-2 border-slate-600">
+    </div>
+
+    <script>
+        let currentFile = null;
+        let currentData = null;
+
+        const ui = {
+            fileInput: document.getElementById('fileInput'),
+            previewContainer: document.getElementById('previewContainer'),
+            previewImg: document.getElementById('previewImg'),
+            detectBtn: document.getElementById('detectBtn'),
+            methodSelect: document.getElementById('methodSelect'),
+            compareMode: document.getElementById('compareMode'),
+            loader: document.getElementById('loadingIndicator'),
+            placeholder: document.getElementById('placeholder'),
+            singleView: document.getElementById('singleResultView'),
+            compareView: document.getElementById('compareResultsView'),
+            statusInfo: document.getElementById('statusInfo'),
+            metricsInfo: document.getElementById('metricsInfo'),
+            paramsArea: document.getElementById('paramsArea'),
+            resetParamsBtn: document.getElementById('resetParamsBtn'),
+            btnCsv: document.getElementById('exportCsvBtn'),
+            btnPng: document.getElementById('exportResultBtn')
+        };
+
+        const methodNames = {
+            "method1": "算法一: 霍夫圆变换（Hough Circle）",
+            "method2": "算法二: 轮廓最小外接圆（Min Enclosing Circle）",
+            "method3": "算法三: 基于Canny边缘的单尺度霍夫检测",
+            "method4": "算法四: YOLOv8"
+        };
+
+        const paramConfigs = {
+            method1: [
+                { id: "dp", label: "累加器分辨率倒数 (dp)", type: "range", min: 1.0, max: 3.0, step: 0.1, default: 1.2 },
+                { id: "minDist", label: "圆心间最小距离", type: "range", min: 1, max: 800, step: 1, default: 30 },
+                { id: "param1", label: "内置Canny高阈值(p1)", type: "range", min: 1, max: 300, step: 1, default: 50 },
+                { id: "param2", label: "霍夫票数阈值(p2)", type: "range", min: 1, max: 200, step: 1, default: 30 },
+                { id: "minRadius", label: "最小半径", type: "range", min: 1, max: 1000, step: 1, default: 10 },
+                { id: "maxRadius", label: "最大半径", type: "range", min: 10, max: 3000, step: 10, default: 300 }
+            ],
+            method2: [
+                { id: "binary_thresh", label: "二值化切分阈值 (0为大津法)", type: "range", min: 0, max: 255, step: 1, default: 0 },
+                { id: "min_area", label: "最小像素面积", type: "range", min: 0, max: 50000, step: 100, default: 100 },
+                { id: "max_area_ratio", label: "最大背景比例", type: "range", min: 0.1, max: 1.0, step: 0.05, default: 0.95 },
+                { id: "min_circularity", label: "最小圆度", type: "range", min: 0.1, max: 1.0, step: 0.05, default: 0.2 },
+                { id: "selection_mode", label: "抉择策略", type: "select", options: [{val:1, text:"选择面积最大者"}, {val:2, text:"选择表现最圆者"}, {val:3, text:"选择最靠近中心者"}], default: 1 }
+            ],
+            method3: [
+                { id: "canny_low", label: "弱边缘连接低阈值", type: "range", min: 0, max: 255, step: 1, default: 50 },
+                { id: "canny_high", label: "首发强边缘门槛", type: "range", min: 0, max: 255, step: 1, default: 150 },
+                { id: "morphological_close", label: "使用形态学连接断裂", type: "checkbox", default: true },
+                { id: "dp", label: "累加器分辨率倒数(dp)", type: "range", min: 1.0, max: 3.0, step: 0.1, default: 1.2 },
+                { id: "minDist", label: "圆心间最小距离", type: "range", min: 1, max: 800, step: 1, default: 30 },
+                { id: "param2", label: "霍夫票数阈值(p2)", type: "range", min: 1, max: 200, step: 1, default: 30 },
+                { id: "minRadius", label: "最小半径", type: "range", min: 1, max: 1000, step: 1, default: 10 },
+                { id: "maxRadius", label: "最大半径", type: "range", min: 10, max: 3000, step: 10, default: 300 }
+            ],
+            method4: [
+                { id: "conf_thresh", label: "置信阈值 (若漏检建议调低至0.05)", type: "range", min: 0.01, max: 1.0, step: 0.01, default: 0.1 }
+            ]
+        };
+
+        let currentParamState = {};
+        function initInitialState() {
+            for(let method in paramConfigs) {
+                currentParamState[method] = {};
+                paramConfigs[method].forEach(cfg => {
+                    currentParamState[method][cfg.id] = cfg.default;
+                });
+            }
+        }
+        initInitialState();
+
+        function renderParamsFor(method) {
+            ui.paramsArea.innerHTML = '';
+            const configs = paramConfigs[method];
+            if(!configs) return;
+
+            configs.forEach(cfg => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'w-full py-2 border-b border-white hover:bg-slate-100/50 transition-colors flex flex-col mb-1 gap-1.5 justify-center';
+                
+                let TopBox = document.createElement('div');
+                TopBox.className = 'flex justify-between items-center w-full px-1';
+                
+                const label = document.createElement('label');
+                label.className = 'text-xs text-slate-800 font-medium truncate flex-1 tracking-wide';
+                label.textContent = cfg.label;
+
+                const currentValue = currentParamState[method][cfg.id];
+
+                if(cfg.type === 'select') {
+                    const selectEl = document.createElement('select');
+                    selectEl.className = 'text-xs border border-blue-200 rounded p-1 outline-none text-slate-700 bg-white shadow-sm';
+                    cfg.options.forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt.val; option.text = opt.text;
+                        selectEl.appendChild(option);
+                    });
+                    selectEl.value = currentValue;
+                    selectEl.onchange = (e) => { currentParamState[method][cfg.id] = parseInt(e.target.value); };
+                    TopBox.appendChild(label); TopBox.appendChild(selectEl); wrapper.appendChild(TopBox);
+                } 
+                else if (cfg.type === 'checkbox') {
+                    const chkBox = document.createElement('input');
+                    chkBox.type = 'checkbox';
+                    chkBox.className = 'w-4 h-4 text-blue-600 rounded cursor-pointer';
+                    chkBox.checked = currentValue;
+                    chkBox.onchange = (e) => { currentParamState[method][cfg.id] = e.target.checked; };
+                    TopBox.appendChild(label); TopBox.appendChild(chkBox); wrapper.appendChild(TopBox);
+                }
+                else {
+                    const displayVal = document.createElement('span');
+                    displayVal.className = 'text-xs font-mono font-bold text-blue-700 bg-blue-100/50 px-2 py-0.5 rounded shrink-0 pointer-events-none min-w-[3.5rem] text-center border border-blue-100';
+                    displayVal.textContent = currentValue;
+                    TopBox.appendChild(label); TopBox.appendChild(displayVal);
+                    
+                    const BtBox = document.createElement('div');
+                    BtBox.className = 'flex items-center w-full px-2 group mt-0.5';
+                    const slider = document.createElement('input');
+                    slider.type = 'range';
+                    slider.min = cfg.min; slider.max = cfg.max;
+                    if(cfg.step) slider.step = cfg.step;
+                    slider.value = currentValue;
+                    
+                    slider.oninput = (e) => {
+                        const val = parseFloat(e.target.value);
+                        displayVal.textContent = val;
+                        currentParamState[method][cfg.id] = val;
+                    };
+                    BtBox.appendChild(slider);
+                    wrapper.appendChild(TopBox); wrapper.appendChild(BtBox);
+                }
+                ui.paramsArea.appendChild(wrapper);
+            });
+        }
+
+        ui.methodSelect.addEventListener('change', () => renderParamsFor(ui.methodSelect.value));
+        ui.resetParamsBtn.addEventListener('click', () => {
+            const method = ui.methodSelect.value;
+            paramConfigs[method].forEach(cfg => { currentParamState[method][cfg.id] = cfg.default; });
+            renderParamsFor(method);
+        });
+        renderParamsFor(ui.methodSelect.value);
+
+        function handleFile(file) {
+            if (!file) return;
+            currentFile = file;
+            ui.statusInfo.textContent = `File Loaded: ${file.name}`;
+            const reader = new FileReader();
+            reader.onload = e => {
+                ui.previewImg.src = e.target.result;
+                document.getElementById('dropZone').classList.add('hidden');
+                ui.previewContainer.classList.remove('hidden');
+                ui.previewContainer.classList.replace('w-24', 'w-full');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        ui.previewContainer.addEventListener('click', () => { ui.fileInput.click(); });
+        ui.fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+        document.getElementById('dropZone').addEventListener('drop', e => {
+            e.preventDefault(); handleFile(e.dataTransfer.files[0]);
+        });
+        ['dragover','drop'].forEach(ev => {
+            document.addEventListener(ev, e => {
+                 e.preventDefault();
+                 if(ev === 'dragover') document.getElementById('dropZone').classList.add('drag-active');
+            });
+        });
+        document.addEventListener('dragleave', () => document.getElementById('dropZone').classList.remove('drag-active'));
+        document.addEventListener('drop', () => document.getElementById('dropZone').classList.remove('drag-active'));
+
+        ui.detectBtn.addEventListener('click', async () => {
+            if (!currentFile) {
+                alert("请先载入图片。"); return;
+            }
+
+            ui.loader.style.display = 'block';
+            ui.detectBtn.disabled = true;
+            ui.statusInfo.textContent = "运行中... 请稍候。";
+
+            const formData = new FormData();
+            formData.append('file', currentFile);
+            formData.append('method', ui.methodSelect.value);
+            formData.append('compare_mode', ui.compareMode.checked);
+            formData.append('params', JSON.stringify(currentParamState));
+
+            try {
+                const res = await fetch('http://127.0.0.1:8000/api/detect', { method: 'POST', body: formData });
+                if(!res.ok) throw new Error("服务器错误：" + res.status);
+                currentData = await res.json();
+                renderUI(currentData, ui.compareMode.checked);
+            } catch(e) {
+                alert("请求失败：" + e.message);
+                ui.statusInfo.textContent = "运行失败!";
+            } finally {
+                ui.loader.style.display = 'none';
+                ui.detectBtn.disabled = false;
+            }
+        });
+
+        function createResultCard(key, data) {
+            const baseClass = "bg-white p-2 rounded shadow-sm border flex flex-col relative w-full h-full overflow-hidden";
+            
+            if (!data.success) {
+                return `<div class="${baseClass} border-t-4 border-rose-400 opacity-90 justify-center items-center">
+                    <p class="text-xs font-bold text-slate-800 mb-[2px] truncate">${methodNames[key]}</p>
+                    <div class="px-2 py-1 mt-1 bg-red-50 text-red-500 rounded border border-red-100 text-[11px] leading-tight text-center break-words w-full overflow-y-auto">
+                        ${data.message || "未能检测到圆"}
+                    </div>
+                </div>`;
+            }
+            
+            const cx = data.center[0], cy = data.center[1], r = data.radius;
+            // 获取最新返回的 edge_coverage 和 confidence
+            const cov = (data.metrics && data.metrics.edge_coverage !== undefined) ? (data.metrics.edge_coverage*100).toFixed(1)+'%' : '-';
+            const conf = (data.metrics && data.metrics.confidence !== undefined) ? (data.metrics.confidence*100).toFixed(1)+'%' : '-';
+
+            return `<div class="${baseClass} border-slate-200">
+                <div class="flex justify-between items-center text-xs font-bold border-b border-slate-100 pb-1 mb-1 shrink-0 w-full">
+                    <span class="text-slate-700 truncate pl-1 border-l-[3px] border-emerald-500">${methodNames[key]}</span>
+                    <button class="text-blue-500 hover:text-blue-700 shrink-0 text-[10px] ml-2 outline-none font-semibold px-1 rounded bg-blue-50 cursor-pointer" onclick="openModal('${data.result_image}')">全屏查看</button>
+                </div>
+                
+                <div class="flex-1 min-h-0 relative w-full bg-[#f8fafc] rounded-sm overflow-hidden cursor-pointer" onclick="openModal('${data.result_image}')" style="background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 10px 10px;">
+                    <img src="${data.result_image}" class="absolute inset-0 w-full h-full object-contain p-1">
+                    <div class="absolute bottom-1 right-1 bg-slate-900/40 text-slate-50 text-[9px] px-1.5 rounded pointer-events-none backdrop-blur-sm">${data.elapsed_ms.toFixed(1)}ms</div>
+                </div>
+                
+                <div class="shrink-0 mt-1.5 grid grid-cols-2 gap-1 text-[10px] text-slate-600 bg-slate-50 border border-slate-100 p-1.5 rounded w-full">
+                    <div class="bg-white px-1.5 border border-slate-100 rounded text-center truncate">X=<b>${cx}</b>, Y=<b>${cy}</b></div>
+                    <div class="bg-white px-1.5 border border-slate-100 rounded text-center truncate">R=<b>${r}px</b></div>
+                    <div class="col-span-2 flex justify-between bg-emerald-50 text-emerald-700 font-semibold px-2 py-[2px] rounded border border-emerald-100 mt-[2px]">
+                        <span>覆盖率: <span class="font-bold">${cov}</span></span> 
+                        <span>置信度: <span class="font-bold">${conf}</span></span>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        function renderUI(data, isCompare) {
+            ui.placeholder.style.display = 'none';
+            ui.singleView.classList.add('hidden');
+            ui.compareView.classList.add('hidden');
+            
+            ui.statusInfo.textContent = "✅ 运行完毕.";
+            let bestCoverage = -1;
+            for(let k in data) { 
+                if(data[k].success && data[k].metrics && data[k].metrics.edge_coverage !== undefined && data[k].metrics.edge_coverage > bestCoverage) { 
+                    bestCoverage = data[k].metrics.edge_coverage; 
+                } 
+            }
+            
+            if(bestCoverage >= 0) ui.metricsInfo.innerHTML = `最高覆盖率: <span class="text-white bg-emerald-600 px-1 rounded shadow-sm">${(bestCoverage*100).toFixed(2)}%</span>`;
+            else ui.metricsInfo.innerHTML = `<span class="text-rose-400">未能成功检测</span>`;
+
+            if (isCompare) {
+                ui.compareView.classList.replace('hidden', 'grid');
+                ui.compareView.innerHTML = '';
+                ['method1', 'method2', 'method3', 'method4'].forEach(key => {
+                    if (data[key]) ui.compareView.innerHTML += createResultCard(key, data[key]);
+                });
+            } else {
+                ui.singleView.classList.replace('hidden', 'flex');
+                let selMethod = ui.methodSelect.value;
+                if(data[selMethod]) {
+                    ui.singleView.innerHTML = `<div class="w-full xl:max-w-4xl max-w-2xl h-full flex flex-col self-center">${createResultCard(selMethod, data[selMethod])}</div>`;
+                }
+            }
+        }
+
+        document.getElementById('closeModal').onclick = () => document.getElementById('imageModal').classList.add('hidden');
+        function openModal(imgSrc) {
+            document.getElementById('modalImage').src = imgSrc;
+            document.getElementById('imageModal').classList.remove('hidden');
+            document.getElementById('imageModal').classList.add('flex');
+        }
+
+        ui.btnCsv.addEventListener('click', () => {
+            if(!currentData) return;
+            let csv = "data:text/csv;charset=utf-8,\uFEFF算法引擎定名,运算执行状态,(X)中心点,(Y)中心点,像素半径,覆盖率,置信度\n";
+            for(let key in currentData) {
+                let d = currentData[key];
+                csv += `${methodNames[key]},${d.success?'识别成立':'放弃处理'},${d.center?d.center[0]:''},${d.center?d.center[1]:''},${d.radius||''},${d.metrics?.edge_coverage||''},${d.metrics?.confidence||''}\n`;
+            }
+            const link = document.createElement("a"); link.href = encodeURI(csv);
+            link.download = `检测算力数据_Build_${new Date().getTime()}.csv`; link.click();
+        });
+
+        ui.btnPng.addEventListener('click', () => {
+             if(!currentData) return;
+             let key = ui.compareMode.checked ? 'method4' : ui.methodSelect.value;
+             if(ui.compareMode.checked && (!currentData[key] || !currentData[key].success)) {
+                  for(let k in currentData) { if(currentData[k].success){ key=k; break; } }
+             }
+             if(currentData[key] && currentData[key].success) {
+                 const link = document.createElement("a"); link.href = currentData[key].result_image;
+                 link.download = `分析结果导出版_${key}.png`; link.click();
+             } else { alert("抱歉，内存池中没有任何计算成功的一帧可写入图库并归档。"); }
+        });
+    </script>
+</body>
+</html>

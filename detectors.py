@@ -366,3 +366,67 @@ def detect_multi_scale_fusion(gray_image: np.ndarray, params: dict) -> Dict[str,
     finally:
         response['diagnostics']['elapsed_ms'] = (time.time() - start_time) * 1000.0
         return response
+
+
+
+try:
+    from ultralytics import YOLO
+except ImportError:
+    YOLO = None
+
+_yolo_model = None
+
+def get_yolo_model(model_path='yolov8n-seg.pt'):
+    global _yolo_model
+    if _yolo_model is None:
+        if YOLO is not None:
+            _yolo_model = YOLO(model_path)
+    return _yolo_model
+
+def detect_yolo_segmentation(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
+    # 【算法四：YOLOv8 实例分割大模型检测】
+    response = _get_base_response()
+    start_time = time.time()
+    try:
+        model = get_yolo_model(params.get('yolo_model_path', 'yolov8n-seg.pt'))
+        if model is None:
+            raise RuntimeError('Ultralytics 库未安装或模型加载失败。')
+            
+        if len(gray_image.shape) == 2:
+            rgb_image = cv2.cvtColor(gray_image, cv2.COLOR_GRAY2RGB)
+        else:
+            rgb_image = gray_image
+
+        results = model.predict(rgb_image, conf=params.get('conf_thresh', 0.25), verbose=False)
+        result = results[0]
+
+        if result.masks is None or len(result.masks) == 0:
+            response['diagnostics']['message'] = 'YOLO 未能在当前置信度下找到目标'
+            response['success'] = False
+            return response
+
+        masks = result.masks.data.cpu().numpy() # [N, H, W]
+        # 取面积最大的 Mask
+        largest_mask_idx = np.argmax([mask.sum() for mask in masks])
+        mask = masks[largest_mask_idx]
+
+        mask_resized = cv2.resize(mask, (rgb_image.shape[1], rgb_image.shape[0]), interpolation=cv2.INTER_NEAREST)
+        mask_uint8 = (mask_resized * 255).astype(np.uint8)
+        response['debug']['edge_map'] = mask_uint8
+
+        contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if contours:
+            largest_contour = max(contours, key=cv2.contourArea)
+            (x, y), radius = cv2.minEnclosingCircle(largest_contour)
+            response['center'] = [int(x), int(y)]
+            response['radius'] = int(radius)
+            response['success'] = True
+            response['diagnostics']['message'] = 'YOLO Segmentation 提取目标并拟合圆心成功'
+        else:
+            response['diagnostics']['message'] = 'Mask 寻找特征轮廓失败'
+    except Exception as e:
+        response['success'] = False
+        response['diagnostics']['message'] = f'YOLO报错: {str(e)}'
+    finally:
+        response['diagnostics']['elapsed_ms'] = (time.time() - start_time) * 1000.0
+        return response

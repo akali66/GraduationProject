@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 圆孔检测分析系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .drag-active { border-color: #3b82f6 !important; background-color: #eff6ff !important; }
+        .loader {
+            border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%;
+            width: 30px; height: 30px; animation: spin 1s linear infinite; display: none; margin: 0 auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800">
+
+    <header class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <h1 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                钻孔图像圆心鲁棒检测平台
+            </h1>
+            <div class="flex gap-2">
+                <button id="exportResultBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm disabled:opacity-50">
+                    保存结果图
+                </button>
+                <button id="exportCsvBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm disabled:opacity-50">
+                    导出指标CSV
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div id="statusBar" class="fixed bottom-0 left-0 right-0 bg-slate-800 text-slate-200 text-xs px-4 py-2 flex justify-between z-20 shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
+        <span id="statusInfo">就绪，等待加载图像...</span>
+        <span id="metricsInfo">系统状态: 正常</span>
+    </div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 mb-10 flex gap-6 flex-col lg:flex-row">
+        
+        <aside class="w-full lg:w-[360px] flex flex-col gap-4 shrink-0">
+            <!-- 加载区 -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-sm font-semibold text-slate-800">1. 加载图像</h2>
+                </div>
+                <div id="dropZone" class="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center cursor-pointer hover:bg-slate-50 transition-colors relative mb-2">
+                    <input type="file" id="fileInput" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/png, image/jpeg">
+                    <p class="text-sm text-slate-600 font-medium">点击/拖拽加载钻孔照片</p>
+                </div>
+                <div id="previewContainer" class="hidden shadow-inner bg-slate-900 rounded-lg overflow-hidden h-40 flex items-center justify-center relative group">
+                    <img id="previewImg" class="max-w-full max-h-full object-contain" alt="预览">
+                    <div class="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center text-white text-xs opacity-0 hover:opacity-100 transition-opacity pointer-events-none">已加载</div>
+                </div>
+            </div>
+
+            <!-- 控制面板 -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col flex-1">
+                <h2 class="text-sm font-semibold text-slate-800 mb-3 border-b pb-2">2. 多维检测面板</h2>
+                
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-slate-700 mb-2">选择检测方法：</label>
+                    <select id="methodSelect" class="w-full text-sm border-slate-300 rounded-md shadow-sm border p-2 focus:ring-blue-500 focus:border-blue-500 bg-slate-50">
+                        <option value="method1">方法一：霍夫圆变换</option>
+                        <option value="method2">方法二：最大轮廓包裹</option>
+                        <option value="method3">方法三：基于边缘的Canny+Hough</option>
+                        <option value="method4" selected>方法四：YOLOv8 分割大模型</option>
+                    </select>
+                </div>
+
+                <!-- 动态参数区域 -->
+                <div class="flex-1 flex flex-col mb-4">
+                    <div class="flex justify-between items-center mb-2 px-1">
+                        <label class="block text-xs font-semibold text-slate-700">可独立调整的参数：</label>
+                        <button id="resetParamsBtn" class="text-[10px] text-blue-600 hover:text-blue-800 underline active:scale-95 transition-transform">重置此方法</button>
+                    </div>
+                    
+                    <div class="border border-slate-200 rounded-md p-3 bg-slate-50/80 shadow-inner flex-1 max-h-[300px] overflow-y-auto" id="paramsArea">
+                        <!-- JS根据选项动态注入控件 -->
+                    </div>
+                </div>
+
+                <div class="mb-4 px-2 py-3 bg-blue-50/50 border border-blue-100 rounded-lg">
+                    <label class="flex items-center text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" id="compareMode" class="rounded text-blue-600 mr-2.5 h-4 w-4 border-slate-300 focus:ring-blue-500">
+                        <span class="font-medium text-blue-800">启用『四种方法对比』模式</span>
+                    </label>
+                    <p class="text-[10px] text-slate-500 ml-6 mt-1">勾选后将自动以各方法的<strong>当前参数状态</strong>同时运行并展示网图。</p>
+                </div>
+
+                <button id="detectBtn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg font-bold shadow-md hover:shadow-lg flex justify-center items-center gap-2 transition-all active:scale-[0.98]">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span>执行处理</span>
+                </button>
+                <div class="mt-3 text-center h-8">
+                    <div id="loadingIndicator" class="loader mx-auto"></div>
+                </div>
+            </div>
+        </aside>
+
+        <section class="flex-1 bg-slate-200/60 rounded-xl overflow-y-auto p-4 border border-slate-300 shadow-inner flex flex-col justify-center min-h-[600px]" id="resultsContainer">
+            <div id="placeholder" class="text-center text-slate-400">
+                <svg class="w-24 h-24 mx-auto mb-4 opacity-40" fill="currentColor" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                <p class="text-lg font-medium tracking-wide">等待加载图像与执行检测...</p>
+            </div>
+            
+            <div id="singleResultView" class="hidden flex-col items-center w-full h-full pb-4"></div>
+            <div id="compareResultsView" class="hidden grid-cols-1 md:grid-cols-2 gap-4 w-full h-full pb-4"></div>
+        </section>
+
+    </main>
+
+    <div id="imageModal" class="fixed inset-0 bg-black/90 z-50 hidden flex-col items-center justify-center p-4 backdrop-blur-md">
+        <button id="closeModal" class="absolute top-6 right-6 text-white p-3 hover:bg-white/20 rounded-full transition-colors"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+        <img id="modalImage" class="max-w-full max-h-[90vh] object-contain rounded shadow-2xl bg-white border-4 border-slate-700">
+    </div>
+
+    <script>
+        let currentFile = null;
+        let currentData = null;
+
+        const ui = {
+            fileInput: document.getElementById('fileInput'),
+            previewContainer: document.getElementById('previewContainer'),
+            previewImg: document.getElementById('previewImg'),
+            detectBtn: document.getElementById('detectBtn'),
+            methodSelect: document.getElementById('methodSelect'),
+            compareMode: document.getElementById('compareMode'),
+            loader: document.getElementById('loadingIndicator'),
+            placeholder: document.getElementById('placeholder'),
+            singleView: document.getElementById('singleResultView'),
+            compareView: document.getElementById('compareResultsView'),
+            statusInfo: document.getElementById('statusInfo'),
+            metricsInfo: document.getElementById('metricsInfo'),
+            paramsArea: document.getElementById('paramsArea'),
+            resetParamsBtn: document.getElementById('resetParamsBtn'),
+            btnCsv: document.getElementById('exportCsvBtn'),
+            btnPng: document.getElementById('exportResultBtn')
+        };
+
+        const methodNames = {
+            "method1": "方法一: 霍夫圆变换",
+            "method2": "方法二: 轮廓包裹",
+            "method3": "方法三: Canny+Hough",
+            "method4": "方法四: YOLOv8 视觉大模型"
+        };
+
+        const paramConfigs = {
+            method1: [
+                { id: "dp", label: "倒数分辨率(dp)", type: "range", min: 1.0, max: 3.0, step: 0.1, default: 1.2 },
+                { id: "minDist", label: "圆心最小距离", type: "number", min: 1, max: 2000, default: 30 },
+                { id: "param1", label: "梯度阈值(Param1)", type: "number", min: 1, max: 300, default: 50 },
+                { id: "param2", label: "累加器阈值(Param2)", type: "number", min: 1, max: 200, default: 30 },
+                { id: "minRadius", label: "最小搜索半径", type: "number", min: 1, max: 1000, default: 10 },
+                { id: "maxRadius", label: "最大搜索半径", type: "number", min: 10, max: 3000, default: 300 }
+            ],
+            method2: [
+                { id: "binary_thresh", label: "二值化阈值(0为自适)", type: "number", min: 0, max: 255, default: 0 },
+                { id: "min_area", label: "剔除噪点最小面积", type: "number", min: 0, max: 10000, default: 100 },
+                { id: "max_area_ratio", label: "最大面积限制比", type: "number", min: 0.1, max: 1.0, step: 0.05, default: 0.95 },
+                { id: "min_circularity", label: "最小圆度", type: "number", min: 0.1, max: 1.0, step: 0.05, default: 0.2 },
+                { id: "selection_mode", label: "最优解决策策略", type: "select", options: [{val:1, text:"最大面积优先"}, {val:2, text:"最高圆度优先"}, {val:3, text:"最靠近物理中心"}], default: 1 }
+            ],
+            method3: [
+                { id: "canny_low", label: "Canny弱边阈值", type: "number", min: 0, max: 255, default: 50 },
+                { id: "canny_high", label: "Canny强边阈值", type: "number", min: 0, max: 255, default: 150 },
+                { id: "morphological_close", label: "自动修复断裂虚线", type: "checkbox", default: true },
+                { id: "dp", label: "霍夫倒数分辨率", type: "number", min: 1.0, max: 3.0, step: 0.1, default: 1.2 },
+                { id: "minDist", label: "霍夫圆心最小距离", type: "number", min: 1, max: 2000, default: 30 },
+                { id: "param2", label: "霍夫累加器阈值", type: "number", min: 1, max: 200, default: 30 },
+                { id: "minRadius", label: "最小搜索半径", type: "number", min: 1, max: 1000, default: 10 },
+                { id: "maxRadius", label: "最大搜索半径", type: "number", min: 10, max: 3000, default: 300 }
+            ],
+            method4: [
+                { id: "conf_thresh", label: "AI 像素置信度", type: "number", min: 0.05, max: 1.0, step: 0.05, default: 0.25 }
+            ]
+        };
+
+        // 状态容器：记录各个方法下参数的当前值
+        let currentParamState = {};
+        function initInitialState() {
+            for(let method in paramConfigs) {
+                currentParamState[method] = {};
+                paramConfigs[method].forEach(cfg => {
+                    currentParamState[method][cfg.id] = cfg.default;
+                });
+            }
+        }
+        initInitialState();
+
+        // 呈现动态UI表单
+        function renderParamsFor(method) {
+            ui.paramsArea.innerHTML = '';
+            const configs = paramConfigs[method];
+            if(!configs) return;
+
+            configs.forEach(cfg => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'flex justify-between items-center py-2 border-b border-slate-200/50 last:border-0 hover:bg-white/50 transition-colors px-1';
+                
+                const label = document.createElement('label');
+                label.className = 'text-slate-600 font-medium whitespace-nowrap truncate mr-2 w-32';
+                label.textContent = cfg.label;
+                label.title = cfg.label;
+
+                let input;
+                const currentValue = currentParamState[method][cfg.id];
+
+                if(cfg.type === 'select') {
+                    input = document.createElement('select');
+                    input.className = 'text-xs border rounded p-1 max-w-[130px] bg-white outline-none focus:ring-1 focus:ring-blue-500 text-center w-full';
+                    cfg.options.forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt.val;
+                        option.text = opt.text;
+                        input.appendChild(option);
+                    });
+                    input.value = currentValue;
+                    input.onchange = (e) => { currentParamState[method][cfg.id] = parseInt(e.target.value); };
+                } 
+                else if (cfg.type === 'checkbox') {
+                    input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.className = 'w-4 h-4 text-blue-600 rounded cursor-pointer mr-6';
+                    input.checked = currentValue;
+                    input.onchange = (e) => { currentParamState[method][cfg.id] = e.target.checked; };
+                }
+                else {
+                    input = document.createElement('input');
+                    input.type = 'number';
+                    input.className = 'w-16 p-1 border rounded text-xs text-center font-mono focus:ring-1 focus:ring-blue-500 outline-none';
+                    if(cfg.step) input.step = cfg.step;
+                    
+                    input.min = cfg.min; input.max = cfg.max;
+                    input.value = currentValue;
+                    
+                    input.onchange = (e) => {
+                        let val = parseFloat(e.target.value);
+                        if(isNaN(val)) val = cfg.default;
+                        if(val < cfg.min) val = cfg.min;
+                        if(val > cfg.max) val = cfg.max;
+                        e.target.value = val;
+                        currentParamState[method][cfg.id] = val;
+                    };
+                }
+                
+                wrapper.appendChild(label);
+                wrapper.appendChild(input);
+                ui.paramsArea.appendChild(wrapper);
+            });
+        }
+
+        ui.methodSelect.addEventListener('change', () => renderParamsFor(ui.methodSelect.value));
+        ui.resetParamsBtn.addEventListener('click', () => {
+            const method = ui.methodSelect.value;
+            paramConfigs[method].forEach(cfg => {
+                currentParamState[method][cfg.id] = cfg.default;
+            });
+            renderParamsFor(method);
+        });
+
+        renderParamsFor(ui.methodSelect.value);
+
+        function handleFile(file) {
+            if (!file) return;
+            currentFile = file;
+            ui.statusInfo.textContent = "底图已加载";
+            const reader = new FileReader();
+            reader.onload = e => {
+                ui.previewImg.src = e.target.result;
+                ui.previewContainer.classList.remove('hidden');
+                ui.placeholder.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        ui.fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+        document.getElementById('dropZone').addEventListener('drop', e => {
+            e.preventDefault(); handleFile(e.dataTransfer.files[0]);
+        });
+        ['dragover','drop'].forEach(ev => {
+            document.addEventListener(ev, e => {
+                 e.preventDefault();
+                 if(ev === 'dragover') document.getElementById('dropZone').classList.add('drag-active');
+            });
+        });
+        document.addEventListener('dragleave', () => document.getElementById('dropZone').classList.remove('drag-active'));
+        document.addEventListener('drop', () => document.getElementById('dropZone').classList.remove('drag-active'));
+
+        ui.detectBtn.addEventListener('click', async () => {
+            if (!currentFile) {
+                alert("请先通过点击/拖拽提供一张待化验的图像。");
+                return;
+            }
+
+            ui.loader.style.display = 'block';
+            ui.detectBtn.disabled = true;
+            ui.statusInfo.textContent = "处理中...";
+
+            const formData = new FormData();
+            formData.append('file', currentFile);
+            formData.append('method', ui.methodSelect.value);
+            formData.append('compare_mode', ui.compareMode.checked);
+            formData.append('params', JSON.stringify(currentParamState));
+
+            try {
+                const res = await fetch('http://localhost:8000/api/detect', { method: 'POST', body: formData });
+                if(!res.ok) throw new Error("服务器错误");
+                
+                currentData = await res.json();
+                renderUI(currentData, ui.compareMode.checked);
+            } catch(e) {
+                alert("系统异常：" + e.message);
+            } finally {
+                ui.loader.style.display = 'none';
+                ui.detectBtn.disabled = false;
+            }
+        });
+
+        function createResultCard(key, data) {
+            if (!data.success) {
+                return `<div class="bg-white px-4 py-6 rounded-xl shadow border-t-8 border-rose-500 w-full mb-4 flex flex-col items-center">
+                    <p class="text-slate-800 font-bold mb-1 text-lg">${methodNames[key]}</p>
+                    <div class="bg-rose-50 px-3 py-2 rounded text-red-600 text-sm mt-2 text-center border border-rose-200">
+                        ${data.message || "未能在当前参数下检测到圆"}
+                    </div>
+                </div>`;
+            }
+            
+            const cx = data.center[0], cy = data.center[1], r = data.radius;
+            const cov = data.metrics?.edge_coverage ? (data.metrics.edge_coverage*100).toFixed(1)+'%' : '待定';
+
+            return `<div class="bg-white px-4 py-3 rounded-xl shadow flex flex-col items-center border border-slate-200 w-full mb-4">
+                <div class="w-full flex justify-between items-center mb-3 text-sm font-bold border-b border-slate-100 pb-2">
+                    <span class="text-slate-800 border-l-4 border-emerald-500 pl-2">${methodNames[key]}</span>
+                    <button class="text-blue-600 underline text-xs font-semibold" onclick="openModal('${data.result_image}')">查看原图</button>
+                </div>
+                
+                <div class="relative w-full h-[280px] bg-slate-100 shadow-inner flex justify-center items-center overflow-hidden rounded-md cursor-zoom-in" onclick="openModal('${data.result_image}')">
+                    <img src="${data.result_image}" class="object-contain max-h-full max-w-full">
+                </div>
+                
+                <div class="w-full text-xs text-slate-700 mt-4 grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-md border border-slate-100">
+                    <div class="flex flex-col bg-white p-2 rounded shadow-sm">坐标: <strong>(${cx}, ${cy})</strong></div>
+                    <div class="flex flex-col bg-white p-2 rounded shadow-sm">半径: <strong>${r} px</strong></div>
+                    <div class="col-span-2 text-emerald-700 font-semibold mt-1 flex justify-between bg-emerald-50 px-2 py-1.5 rounded">
+                         <span>边缘覆盖率:</span>
+                         <span>${cov}</span>
+                    </div>
+                    <div class="col-span-2 text-slate-400 italic text-[10px]">${data.message}</div>
+                </div>
+            </div>`;
+        }
+
+        function renderUI(data, isCompare) {
+            ui.placeholder.style.display = 'none';
+            ui.singleView.classList.add('hidden');
+            ui.compareView.classList.add('hidden');
+            
+            ui.statusInfo.textContent = "执行完毕。";
+
+            if (isCompare) {
+                ui.compareView.classList.remove('hidden');
+                ui.compareView.classList.add('grid');
+                ui.compareView.innerHTML = '';
+                
+                ['method1', 'method2', 'method3', 'method4'].forEach(key => {
+                    if (data[key]) ui.compareView.innerHTML += createResultCard(key, data[key]);
+                });
+            } else {
+                ui.singleView.classList.remove('hidden');
+                ui.singleView.classList.add('flex');
+                
+                let selMethod = ui.methodSelect.value;
+                if(data[selMethod]) {
+                    ui.singleView.innerHTML = `<div class="w-full max-w-2xl">${createResultCard(selMethod, data[selMethod])}</div>`;
+                }
+            }
+        }
+
+        document.getElementById('closeModal').onclick = () => document.getElementById('imageModal').classList.add('hidden');
+        function openModal(imgSrc) {
+            document.getElementById('modalImage').src = imgSrc;
+            document.getElementById('imageModal').classList.remove('hidden');
+            document.getElementById('imageModal').classList.add('flex');
+        }
+
+        ui.btnCsv.addEventListener('click', () => {
+            if(!currentData) return;
+            let csv = "data:text/csv;charset=utf-8,\uFEFF算法,状态,中心X,中心Y,半径,覆盖率\n";
+            for(let key in currentData) {
+                let d = currentData[key];
+                csv += `${methodNames[key]},${d.success?'成功':'失败'},${d.center?d.center[0]:''},${d.center?d.center[1]:''},${d.radius||''},${d.metrics?.edge_coverage||''}\n`;
+            }
+            const link = document.createElement("a");
+            link.href = encodeURI(csv);
+            link.download = `分析结果.csv`;
+            link.click();
+        });
+
+        ui.btnPng.addEventListener('click', () => {
+             if(!currentData) return;
+             let key = ui.compareMode.checked ? 'method4' : ui.methodSelect.value;
+             if(ui.compareMode.checked && (!currentData[key] || !currentData[key].success)) {
+                  for(let k in currentData) { if(currentData[k].success){ key=k; break; } }
+             }
+
+             if(currentData[key] && currentData[key].success) {
+                 const link = document.createElement("a");
+                 link.href = currentData[key].result_image;
+                 link.download = `结果图_${key}.png`;
+                 link.click();
+             } else {
+                 alert("当前无成功图像可保存");
+             }
+        });
+    </script>
+</body>
+</html>
