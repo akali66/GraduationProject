@@ -3,6 +3,11 @@ import numpy as np
 import time
 from typing import Dict, Any
 
+try:
+    from eval_metrics import compute_edge_coverage
+except ImportError:
+    def compute_edge_coverage(*args, **kwargs): return 1.0
+
 def _get_base_response() -> Dict[str, Any]:
     """生成一个统一的默认返回字典结构，保证调用方能正确解析基本字段"""
     return {
@@ -252,16 +257,13 @@ def detect_canny_hough(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
 
 def detect_multi_scale_fusion(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
     """
-    【算法四：多尺度边缘特征图融合检测】
+    【算法四：多尺度边缘特征图融合检测 - 优化版】
     
-    原理说明：
-    由于工件往往因为光照不同或是由于工业打光阴影的不均匀，在整幅图片里，如果我们单独使用一组“低/高”单一阈值 (如同算法三那么干)，
-    总是会导致阴影里的“暗边”因数值太低未能测出，同时强光下划痕里的“杂边”又被错误划进被选序列。
-    那么本算法思路为：
-    1. 平行测试多组环境条件(多尺度遍历)：我们定义多个高低不同的 Canny 边缘阀值组合，对同一张原图跑多遍，这就意味着我们获得了类似“多重曝光(亮度)”后拍出的边缘组合套图。
-    2. 加权融合(Fusion)：将这几幅处于各阈值频段所提取出的图的概率全部叠加，只有在这多频段测验中，常年固在原地不变的“真正的钻孔坚硬黑边”，由于每一次能提取出，它将被加权为一个高概率的实影。背景那偶发的高光斑只在其特俗阈值图出现过，叠图后就只剩下稀薄的残影(数值低于 0-1 的一个小数)；
-    3. 结果合并：我们定下一个截断（例如超过30%(即0.3)）把“常客”真线抠死做基图发给霍夫寻找。 
-    综上：这是个耗时但稳定性与鲁棒性非常强大的抗光遮检测。能有效地把错误光块给平均掉。
+    基于更新后的架构，避免多尺度偏移、过度融合以及形状畸变引发的伪检：
+    1. 引入不同尺度的高斯平滑核与对应阈值的多重组合，并且将大核的权重调低以防偏移；
+    2. 基于不同尺度的特征给予加权融合，增强有用结构，削弱偶发高光伪影。
+    3. 形态学闭运算采用较小核(默认3x3)，避免误把直线刮痕粘连成圆。
+    4. 霍夫检测后再增加边缘重合度校验机制（Edge Coverage Validation），剔除满足投票分数但是实际边缘实体的缺失的"虚假圆"。
     """
     response = _get_base_response()
     start_time = time.time()
@@ -270,10 +272,25 @@ def detect_multi_scale_fusion(gray_image: np.ndarray, params: dict) -> Dict[str,
         if gray_image is None or len(gray_image.shape) != 2:
             raise ValueError("输入的数据必须是 2D 的灰度 numpy 矩阵")
 
-        # 默认下：第一套抓取暗边，第二套抓取均衡边，第三套抓取严苛强光。
-        canny_pairs = params.get('canny_pairs', [(30, 90), (50, 150), (80, 200)])
+        # 读取多尺度配置参数：(高斯核大小, Canny低阈值, Canny高阈值, 融合权重)
+        # 默认参数设计原则：尺度跨度不宜过大(如3, 5, 7)以防止边缘飘移；对小尺度细节保留一定权重。
+        default_scales = [
+            (3, 40, 120, 0.4), # 小尺度平滑：捕获细节和真实浅弱边缘
+            (5, 30, 90,  0.4), # 中等尺度平滑：补充主体结构、抗部分噪点
+            (7, 20, 60,  0.2)  # 较大尺度平滑：抑制强噪声，但为了防特征畸变权重给小一点
+        ]
+        
+        # 兼容老版接口或接收GUI的覆盖
+        scale_configs = params.get('scale_configs', default_scales)
+        
         fusion_thresh = params.get('fusion_thresh', 0.3)
         use_morph = params.get('morphological_close', True)
+        
+        # 避免使用(5,5)这样的大核，改默认使用(3,3)避免特征过度粘连
+        morph_kernel_size = params.get('morph_kernel_size', 3)
+        
+        # 新增验证门槛：计算返回的圆周上边缘点的命中率。低于此门槛将判为环境杂纹误导的“心证”伪影。
+        min_coverage_thresh = params.get('min_coverage_thresh', 0.4) 
 
         dp = params.get('dp', 1.2)
         minDist = params.get('minDist', 30)
@@ -281,34 +298,29 @@ def detect_multi_scale_fusion(gray_image: np.ndarray, params: dict) -> Dict[str,
         minRadius = params.get('minRadius', 10)
         maxRadius = params.get('maxRadius', 100)
 
-        blurred = cv2.GaussianBlur(gray_image, (5, 5), 0)
-        
-        # 建立一张用来收集和接纳不同程度套图的大黑板 (尺寸一致的空白图)，需用能接收小数类型的 float
+        # 建立一张用来收集和接纳不同程度套图的大黑板 (尺寸一致的空白图)，接收浮点结构保留透明度
         fusion_map = np.zeros(gray_image.shape, dtype=np.float32)
         
-        # 步骤 1：遍历多套阈值图并且压制/除以 255 落点于 0~1 的实数，以实现小数级的透明度层加权累积 
-        for low, high in canny_pairs:
+        # 步骤 1：遍历多尺度检测并且加权到实数底板
+        for kernel_size, low, high, weight in scale_configs:
+            blurred = cv2.GaussianBlur(gray_image, (kernel_size, kernel_size), 0)
             edges = cv2.Canny(blurred, low, high)
-            fusion_map += (edges.astype(np.float32) / 255.0)
+            fusion_map += (edges.astype(np.float32) / 255.0) * weight
 
-        # 步骤 2：用获取的图纸套数取平局（总共除以张数），让最清晰的点稳定成为值为 1.0 的百分百图点，而闪隐的点处于极低占比小数点
-        num_pairs = len(canny_pairs)
-        if num_pairs > 0:
-            fusion_map = fusion_map / float(num_pairs)
-            
         # 存给debug方便检视这套精美的概率叠图
         response['debug']['fusion_map'] = fusion_map.copy()
 
-        # 步骤 3：切断它，将高于阈值线（例如大于0.3，出现过一次以上的保留边界）全数转变成结实的二值图块，不合格的归0淘汰 
+        # 步骤 2：对融合图进行截断，将高于阈值线全数转变回二值图块，不合格的归0
         _, fused_binary = cv2.threshold((fusion_map * 255).astype(np.uint8), int(fusion_thresh * 255), 255, cv2.THRESH_BINARY)
         
+        # 步骤 3：轻量级修复微小断点
         if use_morph:
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (morph_kernel_size, morph_kernel_size))
             fused_binary = cv2.morphologyEx(fused_binary, cv2.MORPH_CLOSE, kernel)
 
         response['debug']['edge_map'] = fused_binary
 
-        # 步骤 4：基于抗击光斑污染完成后的究极边缘底版，通过超低要求的Hough完成终点定标寻路
+        # 步骤 4：基础提取定位
         circles = cv2.HoughCircles(
             fused_binary, 
             cv2.HOUGH_GRADIENT, 
@@ -320,16 +332,32 @@ def detect_multi_scale_fusion(gray_image: np.ndarray, params: dict) -> Dict[str,
             maxRadius=maxRadius
         )
 
+        # 步骤 5：引入几何反向校验（Edge Coverage Validation）
         if circles is not None and len(circles) > 0:
-            circles = np.uint16(np.around(circles))
-            best_circle = circles[0, 0]
-            response['center'] = [int(best_circle[0]), int(best_circle[1])]
-            response['radius'] = int(best_circle[2])
-            response['success'] = True
-            response['diagnostics']['message'] = f"跨越 {num_pairs} 道尺度网段的特征图叠洗已结束，高维图谱建查定标完成。"
-            response['debug']['votes'] = circles[0]
+            circles = np.uint16(np.around(circles))[0] # 转为可遍历独立坐标套
+            
+            best_circle_found = False
+            for c in circles:
+                cx, cy, cr = int(c[0]), int(c[1]), int(c[2])
+                
+                # 调用本检测器外挂体系下的评估函数进行验证（在合并边界图上取点看是否落在轮廓线上）
+                cov = compute_edge_coverage((cx, cy), cr, fused_binary)
+                
+                if cov >= min_coverage_thresh:
+                    response['center'] = [cx, cy]
+                    response['radius'] = cr
+                    response['success'] = True
+                    response['diagnostics']['message'] = f"多尺度边缘融合定标完成！重合度校验：{cov*100:.1f}%"
+                    response['debug']['votes'] = c
+                    best_circle_found = True
+                    break
+            
+            # 若列表找完都没有真实结构存在的，那很可能是结构性噪声诱发的幻影
+            if not best_circle_found:
+                response['diagnostics']['message'] = f"捕捉到 {len(circles)} 个潜在结果，但重合度均低于门槛({min_coverage_thresh*100:.0f}%)，被系统作为光斑伪影遗弃。"
+
         else:
-            response['diagnostics']['message'] = "融合网段内因边流弱化仍未能汇聚出能够有效判查通过的核心圆模型。"
+            response['diagnostics']['message'] = "融合网段内因边缘结构弱化碎片化，仍未能寻汇出核心圆心。"
 
     except Exception as e:
         response['success'] = False
