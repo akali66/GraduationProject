@@ -67,14 +67,24 @@ async def detect_image(
             cv2.circle(img_copy, center, 2, (0, 0, 255), 3)
 
             try:
-                e_map = res.get("debug", {}).get("edge_map")
-                if e_map is None:
-                    e_map = cv2.Canny(gray_image, 50, 150)
-                cov = compute_edge_coverage(center, radius, e_map)
-                conf = compute_hough_confidence(res.get("debug", {}), center, radius)
-                metrics = {"edge_coverage": cov, "confidence": conf}
+                # 【修改1：强制使用原图真实边缘】
+                # 指导书要求：“被原始边缘覆盖的比例”
+                # 我们不再信任算法传回来的可能是“实心白块”或“粗糙掩码”的 edge_map
+                # 而是统一对原图做平滑并提取 Canny 原始边缘图进行客观校验
+                blurred_gray = cv2.GaussianBlur(gray_image, (5, 5), 0)
+                original_edge_map = cv2.Canny(blurred_gray, 50, 150)
+                
+                cov = compute_edge_coverage(center, radius, original_edge_map)
+                metrics = {"edge_coverage": cov}
+
+                # 【修改2：按指导书屏蔽非Hough类方法的置信度】
+                # 圆心置信度（仅对霍夫类方法有效），即仅匹配 method1 和 method3
+                if method_id in ["method1", "method3"]:
+                    conf = compute_hough_confidence(res.get("debug", {}), center, radius)
+                    metrics["confidence"] = conf
+                    
             except Exception as e:
-                metrics = {"edge_coverage": 0.0, "confidence": 0.0}
+                metrics = {"edge_coverage": 0.0}
 
         edge_map = res.get('debug', {}).get('edge_map', np.zeros_like(gray_image))
         results[method_id] = {

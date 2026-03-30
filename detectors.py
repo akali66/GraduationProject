@@ -255,7 +255,6 @@ def detect_canny_hough(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
         response['diagnostics']['elapsed_ms'] = (time.time() - start_time) * 1000.0
         return response
 
-def detect_multi_scale_fusion(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
     """
     【算法四：多尺度边缘特征图融合检测 - 优化版】
     
@@ -410,18 +409,36 @@ def detect_yolo_segmentation(gray_image: np.ndarray, params: dict) -> Dict[str, 
         largest_mask_idx = np.argmax([mask.sum() for mask in masks])
         mask = masks[largest_mask_idx]
 
-        mask_resized = cv2.resize(mask, (rgb_image.shape[1], rgb_image.shape[0]), interpolation=cv2.INTER_NEAREST)
+        # 【优化1】：使用双线性插值，消除原始 Nearest 查值造成的锯齿边缘
+        mask_resized = cv2.resize(mask, (rgb_image.shape[1], rgb_image.shape[0]), interpolation=cv2.INTER_LINEAR)
         mask_uint8 = (mask_resized * 255).astype(np.uint8)
+        # 二值化并做基础平滑，使边缘轮廓更贴合圆的几何特性
+        _, mask_uint8 = cv2.threshold(mask_uint8, 127, 255, cv2.THRESH_BINARY)
+        mask_uint8 = cv2.GaussianBlur(mask_uint8, (5, 5), 0)
+        _, mask_uint8 = cv2.threshold(mask_uint8, 127, 255, cv2.THRESH_BINARY)
+
         response['debug']['edge_map'] = mask_uint8
 
         contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if contours:
             largest_contour = max(contours, key=cv2.contourArea)
-            (x, y), radius = cv2.minEnclosingCircle(largest_contour)
-            response['center'] = [int(x), int(y)]
-            response['radius'] = int(radius)
-            response['success'] = True
-            response['diagnostics']['message'] = 'YOLO Segmentation 提取目标并拟合圆心成功'
+            
+            # 【优化2】：用图像矩(Moments)计算质心，用等效面积极距计算半径
+            # 相比于最小外接圆(minEnclosingCircle)，质心法完全免疫掩码边缘孤立噪点造成的圆心严重偏移
+            M = cv2.moments(largest_contour)
+            if M["m00"] != 0:
+                cX = int(M["m10"] / M["m00"])
+                cY = int(M["m01"] / M["m00"])
+                area = cv2.contourArea(largest_contour)
+                # 等效半径 (假设是完美的圆，Area = π * R^2)
+                equivalent_radius = np.sqrt(area / np.pi)
+                
+                response['center'] = [cX, cY]
+                response['radius'] = int(equivalent_radius)
+                response['success'] = True
+                response['diagnostics']['message'] = 'YOLO Segmentation (质心等效圆法重计算成功)'
+            else:
+                response['diagnostics']['message'] = 'Mask 寻找核心几何矩量失败'
         else:
             response['diagnostics']['message'] = 'Mask 寻找特征轮廓失败'
     except Exception as e:

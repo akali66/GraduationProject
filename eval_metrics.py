@@ -1,79 +1,61 @@
-import numpy as np
+﻿import numpy as np
 import cv2
 
 def compute_edge_coverage(circle_center, radius, edge_map, samples=360, tol=2):
     """
-    评估圆周边界的覆盖率。
-    通过在推断的圆周上均匀取样，并在其径向法线的极小范围内寻找边缘图上的边缘点。
-    
-    参数:
-        circle_center: (x, y) 坐标元组
-        radius: 圆心半径
-        edge_map: 二值化的边缘图 (二维 np.ndarray，包含边缘时元素 > 0)
-        samples: 沿圆周的采样点数 (默认360)
-        tol: 径向上允许的法向像素容差 (默认±2)
-        
-    返回:
-        coverage (浮点数 0-1): 找到匹配边界的样本点占比
+    计算基于像素的物理覆盖率：
+    取消了存在离散遗漏情况的360度极坐标抽样法，改用 OpenCV 原生底层的 Bresenham 画弧法。
+    在白板上画出完美的1像素数学理想圆，计算该圆能在膨胀处理后的真实边缘（自带tol误差膨胀）上精确覆盖多少物理像素。
+    (注: samples 参数为了兼容外部调用签名得以保留，但现已全像素化不再使用)
     """
-    if edge_map is None or radius <= 0:
+    if edge_map is None or radius <= 0 or circle_center is None:
         return 0.0
 
-    cx, cy = circle_center
     h, w = edge_map.shape
-    matched = 0
 
-    theta = np.linspace(0, 2 * np.pi, samples, endpoint=False)
-    cos_t = np.cos(theta)
-    sin_t = np.sin(theta)
+    # 1. 在同样大小的空白画布上画出1像素宽的“理想数学圆”
+    ideal_circle = np.zeros((h, w), dtype=np.uint8)
+    cv2.circle(ideal_circle, tuple(int(x) for x in circle_center), int(radius), 1, thickness=1)
 
-    for i in range(samples):
-        found = False
-        # 在径向方向探测 ±tol 个像素范围
-        for dt in range(-tol, tol + 1):
-            r_curr = radius + dt
-            px = int(round(cx + r_curr * cos_t[i]))
-            py = int(round(cy + r_curr * sin_t[i]))
-            
-            if 0 <= px < w and 0 <= py < h:
-                if edge_map[py, px] > 0:
-                    found = True
-                    break
-        if found:
-            matched += 1
+    # 理想圆的总像素数（最精确完美的周长分母）
+    total_ideal_pixels = np.sum(ideal_circle == 1)
+    if total_ideal_pixels == 0:
+        return 0.0
 
-    return float(matched) / samples
+    # 2. 为了模拟找边缘时的容差(tol=2)，对真实的边缘图进行矩形核膨胀（变粗）
+    # kernel size = 2*tol+1，若 tol=2 则是 5x5 的全1核。等于边缘向外四面八方扩散2像素。
+    kernel_size = 2 * tol + 1
+    kernel = np.ones((kernel_size, kernel_size), np.uint8)
+    dilated_edge_map = cv2.dilate(edge_map, kernel, iterations=1)
 
-def compute_hough_confidence(debug, circle_center, radius, samples=360):
-    """
-    计算侦测出的圆的置信度。
-    如果分析数据内附带了概率融合图 (fusion_map)，优先依赖融合图上各采样点均值。
-    否则降级使用二值边缘图的均值作为置信度替代(surrogate)计算。
-    """
+    # 3. 统计命中：在理想数学圆经过的所有独立像素里，看看膨胀扩展出的宽带真实边缘图有没有盖到它
+    hit_pixels = dilated_edge_map[ideal_circle == 1]
+    matched = np.sum(hit_pixels > 0)
+
+    if total_ideal_pixels == 0:
+        return 0.0
+    return float(matched) / float(total_ideal_pixels)
+
+def compute_hough_confidence(debug, circle_center, radius):
     map_to_use = debug.get('fusion_map')
     if map_to_use is None:
-        map_to_use = debug.get('edge_map') 
-        
+        map_to_use = debug.get('edge_map')
+
     if map_to_use is None or radius <= 0 or circle_center is None:
         return 0.0
 
-    cx, cy = circle_center
-    h, w = map_to_use.shape
-    
-    # 极坐标向直角坐标转化采样点并过滤出合法的点
-    theta = np.linspace(0, 2 * np.pi, samples, endpoint=False)
-    pts_x = np.round(cx + radius * np.cos(theta)).astype(int)
-    pts_y = np.round(cy + radius * np.sin(theta)).astype(int)
-    
-    valid = (pts_x >= 0) & (pts_x < w) & (pts_y >= 0) & (pts_y < h)
-    
-    if not np.any(valid):
+    blank = np.zeros_like(map_to_use, dtype=np.uint8)
+    cv2.circle(blank, tuple(int(x) for x in circle_center), int(radius), 1, thickness=1)
+
+    max_possible_votes = np.sum(blank == 1)
+    if max_possible_votes == 0:
         return 0.0
-        
-    response = map_to_use[pts_y[valid], pts_x[valid]]
+
+    hit_values = map_to_use[blank == 1]
     
-    # 若本身图是带有色深的（0-255），需统一转换为0-1
-    if response.dtype == np.uint8:
-        return float(np.mean(response) / 255.0)
-    
-    return float(np.mean(response))
+    if map_to_use.dtype == np.uint8:
+        votes = np.sum(hit_values > 0)
+        return float(votes) / float(max_possible_votes)
+    else:
+        votes = np.sum(hit_values)
+        return float(votes) / float(max_possible_votes)
