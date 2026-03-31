@@ -367,19 +367,21 @@ def detect_canny_hough(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
         return response
 
 
-
+# 1. 尝试导入YOLO库
 try:
     from ultralytics import YOLO
 except ImportError:
-    YOLO = None
+    YOLO = None    # 如果导入失败，将YOLO设为None
 
+# 2. 全局变量，用于缓存模型（单例模式）
 _yolo_model = None
 
+# 3. 获取YOLO模型的函数
 def get_yolo_model(model_path='yolov8n-seg.pt'):
     global _yolo_model
     if _yolo_model is None:
         if YOLO is not None:
-            _yolo_model = YOLO(model_path)
+            _yolo_model = YOLO(model_path)  # 加载模型
     return _yolo_model
 
 def detect_yolo_segmentation(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
@@ -387,60 +389,103 @@ def detect_yolo_segmentation(gray_image: np.ndarray, params: dict) -> Dict[str, 
     response = _get_base_response()
     start_time = time.time()
     try:
+         # 1. 加载模型
         model = get_yolo_model(params.get('yolo_model_path', 'yolov8n-seg.pt'))
         if model is None:
             raise RuntimeError('Ultralytics 库未安装或模型加载失败。')
             
+        # 2. 灰度图转RGB（YOLO需要RGB输入）
         if len(gray_image.shape) == 2:
             rgb_image = cv2.cvtColor(gray_image, cv2.COLOR_GRAY2RGB)
         else:
             rgb_image = gray_image
 
+        # 3. 使用模型进行预测
         results = model.predict(rgb_image, conf=params.get('conf_thresh', 0.25), verbose=False)
         result = results[0]
 
+        # 4. 检查是否有检测结果
         if result.masks is None or len(result.masks) == 0:
             response['diagnostics']['message'] = 'YOLO 未能在当前置信度下找到目标'
             response['success'] = False
             return response
 
         masks = result.masks.data.cpu().numpy() # [N, H, W]
-        # 取面积最大的 Mask
-        largest_mask_idx = np.argmax([mask.sum() for mask in masks])
-        mask = masks[largest_mask_idx]
+        selection_mode = params.get('selection_mode', 1)  # 1: 面积最大, 2: 最佳圆度, 3: 距离中心最近
+        img_center_x = rgb_image.shape[1] / 2.0
+        img_center_y = rgb_image.shape[0] / 2.0
+        
+        valid_masks_info = []
 
-        # 【优化1】：使用双线性插值，消除原始 Nearest 查值造成的锯齿边缘
-        mask_resized = cv2.resize(mask, (rgb_image.shape[1], rgb_image.shape[0]), interpolation=cv2.INTER_LINEAR)
-        mask_uint8 = (mask_resized * 255).astype(np.uint8)
-        # 二值化并做基础平滑，使边缘轮廓更贴合圆的几何特性
-        _, mask_uint8 = cv2.threshold(mask_uint8, 127, 255, cv2.THRESH_BINARY)
-        mask_uint8 = cv2.GaussianBlur(mask_uint8, (5, 5), 0)
-        _, mask_uint8 = cv2.threshold(mask_uint8, 127, 255, cv2.THRESH_BINARY)
-
-        response['debug']['edge_map'] = mask_uint8
-
-        contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if contours:
-            largest_contour = max(contours, key=cv2.contourArea)
+        # 遍历 YOLO 找出的所有目标 Mask
+        for raw_mask in masks:
+            # 使用双线性插值恢复到原图尺寸
+            mask_resized = cv2.resize(raw_mask, (rgb_image.shape[1], rgb_image.shape[0]), interpolation=cv2.INTER_LINEAR)
+            mask_uint8 = (mask_resized * 255).astype(np.uint8)
             
-            # 【优化2】：用图像矩(Moments)计算质心，用等效面积极距计算半径
-            # 相比于最小外接圆(minEnclosingCircle)，质心法完全免疫掩码边缘孤立噪点造成的圆心严重偏移
+            # 平滑处理和二值化，使边缘轮廓更贴合圆的几何特性
+            _, mask_uint8 = cv2.threshold(mask_uint8, 127, 255, cv2.THRESH_BINARY)
+            mask_uint8 = cv2.GaussianBlur(mask_uint8, (5, 5), 0)
+            _, mask_uint8 = cv2.threshold(mask_uint8, 127, 255, cv2.THRESH_BINARY)
+
+            # 提取轮廓
+            contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contours:
+                continue
+                
+            largest_contour = max(contours, key=cv2.contourArea)
+            area = cv2.contourArea(largest_contour)
+            if area == 0:
+                continue
+                
+            # 计算圆度
+            perimeter = cv2.arcLength(largest_contour, True)
+            circularity = 4 * np.pi * area / (perimeter * perimeter) if perimeter > 0 else 0
+            
+            # 【优化】：用图像矩(Moments)计算质心，完全免疫掩码边缘锯齿引起的偏移
             M = cv2.moments(largest_contour)
             if M["m00"] != 0:
                 cX = int(M["m10"] / M["m00"])
                 cY = int(M["m01"] / M["m00"])
-                area = cv2.contourArea(largest_contour)
-                # 等效半径 (假设是完美的圆，Area = π * R^2)
-                equivalent_radius = np.sqrt(area / np.pi)
-                
-                response['center'] = [cX, cY]
-                response['radius'] = int(equivalent_radius)
-                response['success'] = True
-                response['diagnostics']['message'] = 'YOLO Segmentation (质心等效圆法重计算成功)'
             else:
-                response['diagnostics']['message'] = 'Mask 寻找核心几何矩量失败'
+                cX, cY = 0, 0
+                
+            dist_to_center = ((cX - img_center_x) ** 2 + (cY - img_center_y) ** 2) ** 0.5
+            
+            valid_masks_info.append({
+                "mask_uint8": mask_uint8,
+                "area": area,
+                "circularity": circularity,
+                "dist_to_center": dist_to_center,
+                "cX": cX,
+                "cY": cY
+            })
+
+        if not valid_masks_info:
+            response['diagnostics']['message'] = 'YOLO 提取成功但在形态解析中未能找到有效的几何轮廓'
+            return response
+
+        # 根据配置策略，在所有备选 Mask 中挑选最合适的目标
+        if selection_mode == 1:
+            best_target = max(valid_masks_info, key=lambda x: x["area"])
+            strategy_name = "极大面积"
+        elif selection_mode == 2:
+            best_target = max(valid_masks_info, key=lambda x: x["circularity"])
+            strategy_name = "最佳圆度"
         else:
-            response['diagnostics']['message'] = 'Mask 寻找特征轮廓失败'
+            best_target = min(valid_masks_info, key=lambda x: x["dist_to_center"])
+            strategy_name = "靠近中心"
+
+        # 推送最后挑选出的目标对象数据
+        response['debug']['edge_map'] = best_target['mask_uint8']
+        
+        # 等效半径 (假设它是圆，推导公式 R = sqrt(Area / π) )
+        equivalent_radius = np.sqrt(best_target['area'] / np.pi)
+        
+        response['center'] = [best_target['cX'], best_target['cY']]
+        response['radius'] = int(equivalent_radius)
+        response['success'] = True
+        response['diagnostics']['message'] = f'YOLO定位成功，使用[{strategy_name}]策略在 {len(valid_masks_info)} 个目标中锁定。'
     except Exception as e:
         response['success'] = False
         response['diagnostics']['message'] = f'YOLO报错: {str(e)}'

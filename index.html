@@ -175,7 +175,8 @@
                 { id: "maxRadius", label: "最大半径", type: "range", min: 10, max: 3000, step: 10, default: 300 }
             ],
             method4: [
-                { id: "conf_thresh", label: "置信阈值 (若漏检建议调低至0.05)", type: "range", min: 0.01, max: 1.0, step: 0.01, default: 0.1 }
+                  { id: "conf_thresh", label: "置信阈值 (若漏检建议调低至0.05)", type: "range", min: 0.01, max: 1.0, step: 0.01, default: 0.1 },
+                  { id: "selection_mode", label: "抉择策略", type: "select", options: [{val:1, text:"选择面积最大者"}, {val:2, text:"选择表现最圆者"}, {val:3, text:"选择最靠近中心者"}], default: 1 }
             ]
         };
 
@@ -333,8 +334,8 @@
             
             const cx = data.center[0], cy = data.center[1], r = data.radius;
             // 获取最新返回的 edge_coverage 和 confidence
-            const cov = (data.metrics && data.metrics.edge_coverage !== undefined) ? (data.metrics.edge_coverage*100).toFixed(1)+'%' : '-';
-            const conf = (data.metrics && data.metrics.confidence !== undefined) ? (data.metrics.confidence*100).toFixed(1)+'%' : '-';
+            const cov = (data.metrics && data.metrics.edge_coverage !== undefined) ? (data.metrics.edge_coverage*100).toFixed(2)+'%' : '-';
+            const conf = (data.metrics && data.metrics.confidence !== undefined) ? (data.metrics.confidence*100).toFixed(2)+'%' : '-';
 
             return `<div class="${baseClass} border-slate-200">
                 <div class="flex justify-between items-center text-xs font-bold border-b border-slate-100 pb-1 mb-1 shrink-0 w-full">
@@ -344,7 +345,7 @@
                 
                 <div class="flex-1 min-h-0 relative w-full bg-[#f8fafc] rounded-sm overflow-hidden cursor-pointer" onclick="openModal('${data.result_image}')" style="background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 10px 10px;">
                     <img src="${data.result_image}" class="absolute inset-0 w-full h-full object-contain p-1">
-                    <div class="absolute bottom-1 right-1 bg-slate-900/40 text-slate-50 text-[9px] px-1.5 rounded pointer-events-none backdrop-blur-sm">${data.elapsed_ms.toFixed(1)}ms</div>
+                    <div class="absolute bottom-1 right-1 bg-slate-900/40 text-slate-50 text-[9px] px-1.5 rounded pointer-events-none backdrop-blur-sm">${data.elapsed_ms.toFixed(2)}ms</div>
                 </div>
                 
                 <div class="shrink-0 mt-1.5 grid grid-cols-2 gap-1 text-[10px] text-slate-600 bg-slate-50 border border-slate-100 p-1.5 rounded w-full">
@@ -482,8 +483,8 @@
 
                  if (dt && dt.success) {
                      const cx = dt.center[0], cy = dt.center[1], r = dt.radius;
-                     const cov = (dt.metrics && dt.metrics.edge_coverage !== undefined) ? (dt.metrics.edge_coverage*100).toFixed(1)+'%' : '-';
-                     const conf = (dt.metrics && dt.metrics.confidence !== undefined) ? (dt.metrics.confidence*100).toFixed(1)+'%' : '-';
+                     const cov = (dt.metrics && dt.metrics.edge_coverage !== undefined) ? (dt.metrics.edge_coverage*100).toFixed(2)+'%' : '-';
+                     const conf = (dt.metrics && dt.metrics.confidence !== undefined) ? (dt.metrics.confidence*100).toFixed(2)+'%' : '-';
                      ctx.font = '28px sans-serif';
                      ctx.fillStyle = '#475569';
                      
