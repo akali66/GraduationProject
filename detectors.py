@@ -255,117 +255,6 @@ def detect_canny_hough(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
         response['diagnostics']['elapsed_ms'] = (time.time() - start_time) * 1000.0
         return response
 
-    """
-    【算法四：多尺度边缘特征图融合检测 - 优化版】
-    
-    基于更新后的架构，避免多尺度偏移、过度融合以及形状畸变引发的伪检：
-    1. 引入不同尺度的高斯平滑核与对应阈值的多重组合，并且将大核的权重调低以防偏移；
-    2. 基于不同尺度的特征给予加权融合，增强有用结构，削弱偶发高光伪影。
-    3. 形态学闭运算采用较小核(默认3x3)，避免误把直线刮痕粘连成圆。
-    4. 霍夫检测后再增加边缘重合度校验机制（Edge Coverage Validation），剔除满足投票分数但是实际边缘实体的缺失的"虚假圆"。
-    """
-    response = _get_base_response()
-    start_time = time.time()
-    
-    try:
-        if gray_image is None or len(gray_image.shape) != 2:
-            raise ValueError("输入的数据必须是 2D 的灰度 numpy 矩阵")
-
-        # 读取多尺度配置参数：(高斯核大小, Canny低阈值, Canny高阈值, 融合权重)
-        # 默认参数设计原则：尺度跨度不宜过大(如3, 5, 7)以防止边缘飘移；对小尺度细节保留一定权重。
-        default_scales = [
-            (3, 40, 120, 0.4), # 小尺度平滑：捕获细节和真实浅弱边缘
-            (5, 30, 90,  0.4), # 中等尺度平滑：补充主体结构、抗部分噪点
-            (7, 20, 60,  0.2)  # 较大尺度平滑：抑制强噪声，但为了防特征畸变权重给小一点
-        ]
-        
-        # 兼容老版接口或接收GUI的覆盖
-        scale_configs = params.get('scale_configs', default_scales)
-        
-        fusion_thresh = params.get('fusion_thresh', 0.3)
-        use_morph = params.get('morphological_close', True)
-        
-        # 避免使用(5,5)这样的大核，改默认使用(3,3)避免特征过度粘连
-        morph_kernel_size = params.get('morph_kernel_size', 3)
-        
-        # 新增验证门槛：计算返回的圆周上边缘点的命中率。低于此门槛将判为环境杂纹误导的“心证”伪影。
-        min_coverage_thresh = params.get('min_coverage_thresh', 0.4) 
-
-        dp = params.get('dp', 1.2)
-        minDist = params.get('minDist', 30)
-        param2 = params.get('param2', 25)
-        minRadius = params.get('minRadius', 10)
-        maxRadius = params.get('maxRadius', 100)
-
-        # 建立一张用来收集和接纳不同程度套图的大黑板 (尺寸一致的空白图)，接收浮点结构保留透明度
-        fusion_map = np.zeros(gray_image.shape, dtype=np.float32)
-        
-        # 步骤 1：遍历多尺度检测并且加权到实数底板
-        for kernel_size, low, high, weight in scale_configs:
-            blurred = cv2.GaussianBlur(gray_image, (kernel_size, kernel_size), 0)
-            edges = cv2.Canny(blurred, low, high)
-            fusion_map += (edges.astype(np.float32) / 255.0) * weight
-
-        # 存给debug方便检视这套精美的概率叠图
-        response['debug']['fusion_map'] = fusion_map.copy()
-
-        # 步骤 2：对融合图进行截断，将高于阈值线全数转变回二值图块，不合格的归0
-        _, fused_binary = cv2.threshold((fusion_map * 255).astype(np.uint8), int(fusion_thresh * 255), 255, cv2.THRESH_BINARY)
-        
-        # 步骤 3：轻量级修复微小断点
-        if use_morph:
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (morph_kernel_size, morph_kernel_size))
-            fused_binary = cv2.morphologyEx(fused_binary, cv2.MORPH_CLOSE, kernel)
-
-        response['debug']['edge_map'] = fused_binary
-
-        # 步骤 4：基础提取定位
-        circles = cv2.HoughCircles(
-            fused_binary, 
-            cv2.HOUGH_GRADIENT, 
-            dp=dp, 
-            minDist=minDist,
-            param1=1, 
-            param2=param2, 
-            minRadius=minRadius, 
-            maxRadius=maxRadius
-        )
-
-        # 步骤 5：引入几何反向校验（Edge Coverage Validation）
-        if circles is not None and len(circles) > 0:
-            circles = np.uint16(np.around(circles))[0] # 转为可遍历独立坐标套
-            
-            best_circle_found = False
-            for c in circles:
-                cx, cy, cr = int(c[0]), int(c[1]), int(c[2])
-                
-                # 调用本检测器外挂体系下的评估函数进行验证（在合并边界图上取点看是否落在轮廓线上）
-                cov = compute_edge_coverage((cx, cy), cr, fused_binary)
-                
-                if cov >= min_coverage_thresh:
-                    response['center'] = [cx, cy]
-                    response['radius'] = cr
-                    response['success'] = True
-                    response['diagnostics']['message'] = f"多尺度边缘融合定标完成！重合度校验：{cov*100:.1f}%"
-                    response['debug']['votes'] = c
-                    best_circle_found = True
-                    break
-            
-            # 若列表找完都没有真实结构存在的，那很可能是结构性噪声诱发的幻影
-            if not best_circle_found:
-                response['diagnostics']['message'] = f"捕捉到 {len(circles)} 个潜在结果，但重合度均低于门槛({min_coverage_thresh*100:.0f}%)，被系统作为光斑伪影遗弃。"
-
-        else:
-            response['diagnostics']['message'] = "融合网段内因边缘结构弱化碎片化，仍未能寻汇出核心圆心。"
-
-    except Exception as e:
-        response['success'] = False
-        response['diagnostics']['message'] = f"多尺度组合时产生错误阻塞: {str(e)}"
-        
-    finally:
-        response['diagnostics']['elapsed_ms'] = (time.time() - start_time) * 1000.0
-        return response
-
 
 # 1. 尝试导入YOLO库
 try:
@@ -376,7 +265,7 @@ except ImportError:
 # 2. 全局变量，用于缓存模型（单例模式）
 _yolo_model = None
 
-# 3. 获取YOLO模型的函数
+# 3. 获取YOLO模型的函数,单例模式：确保模型只加载一次，提高效率
 def get_yolo_model(model_path='yolov8n-seg.pt'):
     global _yolo_model
     if _yolo_model is None:
@@ -385,7 +274,7 @@ def get_yolo_model(model_path='yolov8n-seg.pt'):
     return _yolo_model
 
 def detect_yolo_segmentation(gray_image: np.ndarray, params: dict) -> Dict[str, Any]:
-    # 【算法四：YOLOv8 实例分割大模型检测】
+    # 算法四：YOLOv8 实例分割大模型检测
     response = _get_base_response()
     start_time = time.time()
     try:
@@ -412,6 +301,7 @@ def detect_yolo_segmentation(gray_image: np.ndarray, params: dict) -> Dict[str, 
 
         masks = result.masks.data.cpu().numpy() # [N, H, W]
         selection_mode = params.get('selection_mode', 1)  # 1: 面积最大, 2: 最佳圆度, 3: 距离中心最近
+        # rgb_image.shape返回 (高度, 宽度, 通道数) 中心点：(宽度/2, 高度/2)
         img_center_x = rgb_image.shape[1] / 2.0
         img_center_y = rgb_image.shape[0] / 2.0
         
@@ -421,7 +311,7 @@ def detect_yolo_segmentation(gray_image: np.ndarray, params: dict) -> Dict[str, 
         for raw_mask in masks:
             # 使用双线性插值恢复到原图尺寸
             mask_resized = cv2.resize(raw_mask, (rgb_image.shape[1], rgb_image.shape[0]), interpolation=cv2.INTER_LINEAR)
-            mask_uint8 = (mask_resized * 255).astype(np.uint8)
+            mask_uint8 = (mask_resized * 255).astype(np.uint8) # OpenCV处理图片通常用uint8类型
             
             # 平滑处理和二值化，使边缘轮廓更贴合圆的几何特性
             _, mask_uint8 = cv2.threshold(mask_uint8, 127, 255, cv2.THRESH_BINARY)
@@ -442,14 +332,15 @@ def detect_yolo_segmentation(gray_image: np.ndarray, params: dict) -> Dict[str, 
             perimeter = cv2.arcLength(largest_contour, True)
             circularity = 4 * np.pi * area / (perimeter * perimeter) if perimeter > 0 else 0
             
-            # 【优化】：用图像矩(Moments)计算质心，完全免疫掩码边缘锯齿引起的偏移
+            # 用图像矩(Moments)计算质心，完全免疫掩码边缘锯齿引起的偏移
             M = cv2.moments(largest_contour)
             if M["m00"] != 0:
                 cX = int(M["m10"] / M["m00"])
                 cY = int(M["m01"] / M["m00"])
             else:
                 cX, cY = 0, 0
-                
+            
+            # 到中心距离
             dist_to_center = ((cX - img_center_x) ** 2 + (cY - img_center_y) ** 2) ** 0.5
             
             valid_masks_info.append({
@@ -479,7 +370,7 @@ def detect_yolo_segmentation(gray_image: np.ndarray, params: dict) -> Dict[str, 
         # 推送最后挑选出的目标对象数据
         response['debug']['edge_map'] = best_target['mask_uint8']
         
-        # 等效半径 (假设它是圆，推导公式 R = sqrt(Area / π) )
+        # 等效半径 
         equivalent_radius = np.sqrt(best_target['area'] / np.pi)
         
         response['center'] = [best_target['cX'], best_target['cY']]
