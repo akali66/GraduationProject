@@ -33,7 +33,7 @@ def img_to_base64(img_array):
 @app.post("/api/detect")
 async def detect_image(
     file: UploadFile = File(...),
-    method: str = Form("method4"),
+    method: str = Form("method1"),
     compare_mode: bool = Form(False),
     params: str = Form("{}")
 ):

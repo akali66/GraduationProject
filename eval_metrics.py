@@ -2,12 +2,6 @@
 import cv2
 
 def compute_edge_coverage(circle_center, radius, edge_map, samples=360, tol=2):
-    """
-    计算基于像素的物理覆盖率：
-    取消了存在离散遗漏情况的360度极坐标抽样法，改用 OpenCV 原生底层的 Bresenham 画弧法。
-    在白板上画出完美的1像素数学理想圆，计算该圆能在膨胀处理后的真实边缘（自带tol误差膨胀）上精确覆盖多少物理像素。
-    (注: samples 参数为了兼容外部调用签名得以保留，但现已全像素化不再使用)
-    """
     if edge_map is None or radius <= 0 or circle_center is None:
         return 0.0
 
