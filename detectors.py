@@ -266,7 +266,7 @@ except ImportError:
 _yolo_model = None
 
 # 3. 获取YOLO模型的函数,单例模式：确保模型只加载一次，提高效率
-def get_yolo_model(model_path='yolov8n-seg.pt'):
+def get_yolo_model(model_path='runs/segment/Borehole_Training/YOLOv8n_Seg_Run13/weights/best.pt'):
     global _yolo_model
     if _yolo_model is None:
         if YOLO is not None:
@@ -279,7 +279,7 @@ def detect_yolo_segmentation(gray_image: np.ndarray, params: dict) -> Dict[str, 
     start_time = time.time()
     try:
          # 1. 加载模型
-        model = get_yolo_model(params.get('yolo_model_path', 'yolov8n-seg.pt'))
+        model = get_yolo_model(params.get('yolo_model_path', 'runs/segment/Borehole_Training/YOLOv8n_Seg_Run13/weights/best.pt'))
         if model is None:
             raise RuntimeError('Ultralytics 库未安装或模型加载失败。')
             
@@ -332,13 +332,27 @@ def detect_yolo_segmentation(gray_image: np.ndarray, params: dict) -> Dict[str, 
             perimeter = cv2.arcLength(largest_contour, True)
             circularity = 4 * np.pi * area / (perimeter * perimeter) if perimeter > 0 else 0
             
+            # 计算最小外接圆 (用于对比和可选输出)
+            (x_enc, y_enc), radius_enc = cv2.minEnclosingCircle(largest_contour)
+            
             # 用图像矩(Moments)计算质心，完全免疫掩码边缘锯齿引起的偏移
             M = cv2.moments(largest_contour)
             if M["m00"] != 0:
-                cX = int(M["m10"] / M["m00"])
-                cY = int(M["m01"] / M["m00"])
+                cX_mom = int(M["m10"] / M["m00"])
+                cY_mom = int(M["m01"] / M["m00"])
             else:
-                cX, cY = 0, 0
+                cX_mom, cY_mom = int(x_enc), int(y_enc)
+            
+            # 根据前端配置的选择，决定使用哪种中心计算方式
+            center_method = params.get('center_method', 'moments')
+            if center_method == 'min_enclosing':
+                cX, cY = int(x_enc), int(y_enc)
+                radius_val = int(radius_enc)
+                calc_name = "外接圆法"
+            else:
+                cX, cY = cX_mom, cY_mom
+                radius_val = int(np.sqrt(area / np.pi))
+                calc_name = "图像矩法"
             
             # 到中心距离
             dist_to_center = ((cX - img_center_x) ** 2 + (cY - img_center_y) ** 2) ** 0.5
@@ -349,7 +363,9 @@ def detect_yolo_segmentation(gray_image: np.ndarray, params: dict) -> Dict[str, 
                 "circularity": circularity,
                 "dist_to_center": dist_to_center,
                 "cX": cX,
-                "cY": cY
+                "cY": cY,
+                "radius": radius_val,
+                "calc_name": calc_name
             })
 
         if not valid_masks_info:
@@ -370,13 +386,10 @@ def detect_yolo_segmentation(gray_image: np.ndarray, params: dict) -> Dict[str, 
         # 推送最后挑选出的目标对象数据
         response['debug']['edge_map'] = best_target['mask_uint8']
         
-        # 等效半径 
-        equivalent_radius = np.sqrt(best_target['area'] / np.pi)
-        
         response['center'] = [best_target['cX'], best_target['cY']]
-        response['radius'] = int(equivalent_radius)
+        response['radius'] = best_target['radius']
         response['success'] = True
-        response['diagnostics']['message'] = f'YOLO定位成功，使用[{strategy_name}]策略在 {len(valid_masks_info)} 个目标中锁定。'
+        response['diagnostics']['message'] = f'YOLO定位成功，抉择:[{strategy_name}] 计算:[{best_target["calc_name"]}]'
     except Exception as e:
         response['success'] = False
         response['diagnostics']['message'] = f'YOLO报错: {str(e)}'

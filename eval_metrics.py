@@ -53,3 +53,31 @@ def compute_hough_confidence(debug, circle_center, radius):
     else:
         votes = np.sum(hit_values)
         return float(votes) / float(max_possible_votes)
+
+def compute_mask_iou(circle_center, radius, mask_img):
+    """
+    计算 面具交并比 (Mask IoU)，用于评估“基于面”提取算法的拟合度。
+    只有二维分割算法（算法二、算法四）适用。
+    """
+    if mask_img is None or radius <= 0 or circle_center is None:
+        return 0.0
+    h, w = mask_img.shape
+    
+    # 按照算出的圆心和半径，生成一个标准的白色实心圆图层
+    ideal_circle = np.zeros((h, w), dtype=np.uint8)
+    cv2.circle(ideal_circle, tuple(int(x) for x in circle_center), int(radius), 255, thickness=-1)
+    
+    # 确保掩码图是纯正的二值化图（只有0和255）
+    _, mask_binary = cv2.threshold(mask_img, 127, 255, cv2.THRESH_BINARY)
+    
+    # 交集：两个图都是白色的区域
+    intersection = cv2.bitwise_and(ideal_circle, mask_binary)
+    # 并集：任意一张图是白色的区域
+    union = cv2.bitwise_or(ideal_circle, mask_binary)
+    
+    inter_area = np.sum(intersection > 0)
+    union_area = np.sum(union > 0)
+    
+    if union_area == 0:
+        return 0.0
+    return float(inter_area) / float(union_area)

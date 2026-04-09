@@ -13,7 +13,7 @@ from detectors import (
     detect_canny_hough,
     detect_yolo_segmentation
 )
-from eval_metrics import compute_edge_coverage, compute_hough_confidence
+from eval_metrics import compute_edge_coverage, compute_hough_confidence, compute_mask_iou
 
 app = FastAPI(title="AI Model Web API")
 
@@ -69,20 +69,26 @@ async def detect_image(
             try:
                 # 【修改1：强制使用原图真实边缘】
                 # 指导书要求：“被原始边缘覆盖的比例”
-                # 我们不再信任算法传回来的可能是“实心白块”或“粗糙掩码”的 edge_map
-                # 而是统一对原图做平滑并提取 Canny 原始边缘图进行客观校验
                 blurred_gray = cv2.GaussianBlur(gray_image, (5, 5), 0)
                 original_edge_map = cv2.Canny(blurred_gray, 50, 150)
                 
-                cov = compute_edge_coverage(center, radius, original_edge_map)
+                # 动态容差：对大模型给予更多的容差(因为大模型忽略毛刺，拟合的是宏观完美圆)
+                tol = 6 if method_id == "method4" else 2
+                cov = compute_edge_coverage(center, radius, original_edge_map, tol=tol)
                 metrics = {"edge_coverage": cov}
 
-                # 【修改2：按指导书屏蔽非Hough类方法的置信度】
-                # 圆心置信度（仅对霍夫类方法有效），即仅匹配 method1 和 method3
+                # 【修改2：按指导书屏蔽非Hough类方法的置信度，并增加二维交并比IoU算法】
                 if method_id in ["method1", "method3"]:
                     conf = compute_hough_confidence(res.get("debug", {}), center, radius)
                     metrics["confidence"] = conf
-                    
+                
+                # 面提取(二维) 的算法独有的 面具交并比 Mask IoU 指标
+                if method_id in ["method2", "method4"]:
+                    mask = res.get("debug", {}).get("edge_map")
+                    if mask is not None:
+                        iou = compute_mask_iou(center, radius, mask)
+                        metrics["mask_iou"] = iou
+
             except Exception as e:
                 metrics = {"edge_coverage": 0.0}
 

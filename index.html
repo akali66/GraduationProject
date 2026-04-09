@@ -175,8 +175,9 @@
                 { id: "maxRadius", label: "最大半径", type: "range", min: 10, max: 3000, step: 10, default: 300 }
             ],
             method4: [
-                  { id: "conf_thresh", label: "置信阈值 (若漏检建议调低至0.05)", type: "range", min: 0.01, max: 1.0, step: 0.01, default: 0.1 },
-                  { id: "selection_mode", label: "抉择策略", type: "select", options: [{val:1, text:"选择面积最大者"}, {val:2, text:"选择表现最圆者"}, {val:3, text:"选择最靠近中心者"}], default: 1 }
+                    { id: "conf_thresh", label: "置信阈值 (若漏检建议调低至0.05)", type: "range", min: 0.01, max: 1.0, step: 0.01, default: 0.25 },
+                    { id: "selection_mode", label: "抉择策略", type: "select", options: [{val:1, text:"选择面积最大者"}, {val:2, text:"选择表现最圆者"}, {val:3, text:"选择最靠近中心者"}], default: 1 },
+                    { id: "center_method", label: "中心推算算法", type: "select", options: [{val:"moments", text:"图像矩质心（耐坑洼不规则）"}, {val:"min_enclosing", text:"最小外接圆（耐边缘大残缺）"}], default: "moments" }
             ]
         };
 
@@ -333,28 +334,31 @@
             }
             
             const cx = data.center[0], cy = data.center[1], r = data.radius;
-            // 获取最新返回的 edge_coverage 和 confidence
-            const cov = (data.metrics && data.metrics.edge_coverage !== undefined) ? (data.metrics.edge_coverage*100).toFixed(2)+'%' : '-';
-            const conf = (data.metrics && data.metrics.confidence !== undefined) ? (data.metrics.confidence*100).toFixed(2)+'%' : '-';
+              // 获取最新返回的 edge_coverage, confidence, mask_iou
+              const cov = (data.metrics && data.metrics.edge_coverage !== undefined) ? (data.metrics.edge_coverage*100).toFixed(2)+'%' : '-';
+              const conf = (data.metrics && data.metrics.confidence !== undefined) ? (data.metrics.confidence*100).toFixed(2)+'%' : '-';
+              const iou = (data.metrics && data.metrics.mask_iou !== undefined) ? (data.metrics.mask_iou*100).toFixed(2)+'%' : 'N/A';
 
-            return `<div class="${baseClass} border-slate-200">
-                <div class="flex justify-between items-center text-xs font-bold border-b border-slate-100 pb-1 mb-1 shrink-0 w-full">
-                    <span class="text-slate-700 truncate pl-1 border-l-[3px] border-emerald-500">${methodNames[key]}</span>
-                    <button class="text-blue-500 hover:text-blue-700 shrink-0 text-[10px] ml-2 outline-none font-semibold px-1 rounded bg-blue-50 cursor-pointer" onclick="openModal('${data.result_image}')">全屏查看</button>
-                </div>
-                
-                <div class="flex-1 min-h-0 relative w-full bg-[#f8fafc] rounded-sm overflow-hidden cursor-pointer" onclick="openModal('${data.result_image}')" style="background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 10px 10px;">
-                    <img src="${data.result_image}" class="absolute inset-0 w-full h-full object-contain p-1">
-                    <div class="absolute bottom-1 right-1 bg-slate-900/40 text-slate-50 text-[9px] px-1.5 rounded pointer-events-none backdrop-blur-sm">${data.elapsed_ms.toFixed(2)}ms</div>
-                </div>
-                
-                <div class="shrink-0 mt-1.5 grid grid-cols-2 gap-1 text-[10px] text-slate-600 bg-slate-50 border border-slate-100 p-1.5 rounded w-full">
-                    <div class="bg-white px-1.5 border border-slate-100 rounded text-center truncate">X=<b>${cx}</b>, Y=<b>${cy}</b></div>
-                    <div class="bg-white px-1.5 border border-slate-100 rounded text-center truncate">R=<b>${r}px</b></div>
-                    <div class="col-span-2 flex justify-between bg-emerald-50 text-emerald-700 font-semibold px-2 py-[2px] rounded border border-emerald-100 mt-[2px]">
-                        <span>覆盖率: <span class="font-bold">${cov}</span></span> 
-                        <span>置信度: <span class="font-bold">${conf}</span></span>
-                    </div>
+              return `<div class="${baseClass} border-slate-200">
+                  <div class="flex justify-between items-center text-xs font-bold border-b border-slate-100 pb-1 mb-1 shrink-0 w-full">
+                      <span class="text-slate-700 truncate pl-1 border-l-[3px] border-emerald-500">${methodNames[key]}</span>
+                      <button class="text-blue-500 hover:text-blue-700 shrink-0 text-[10px] ml-2 outline-none font-semibold px-1 rounded bg-blue-50 cursor-pointer" onclick="openModal('${data.result_image}')">全屏查看</button>
+                  </div>
+                  
+                  <div class="flex-1 min-h-0 relative w-full bg-[#f8fafc] rounded-sm overflow-hidden cursor-pointer" onclick="openModal('${data.result_image}')" style="background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 10px 10px;">
+                      <img src="${data.result_image}" class="absolute inset-0 w-full h-full object-contain p-1">
+                      <div class="absolute bottom-1 right-1 bg-slate-900/40 text-slate-50 text-[9px] px-1.5 rounded pointer-events-none backdrop-blur-sm">${data.elapsed_ms.toFixed(2)}ms</div>
+                  </div>
+                  
+                  <div class="shrink-0 mt-1.5 grid grid-cols-2 gap-1 text-[10px] text-slate-600 bg-slate-50 border border-slate-100 p-1.5 rounded w-full">
+                      <div class="bg-white px-1.5 border border-slate-100 rounded text-center truncate">X=<b>${cx}</b>, Y=<b>${cy}</b></div>
+                      <div class="bg-white px-1.5 border border-slate-100 rounded text-center truncate">R=<b>${r}px</b></div>
+                      <div class="col-span-2 flex justify-between bg-emerald-50 text-emerald-700 font-semibold px-2 py-[2px] rounded border border-emerald-100 mt-[2px]">
+                          <span>线覆盖率: <span class="font-bold">${cov}</span></span> 
+                          <span>置信度: <span class="font-bold">${conf}</span></span>
+                      </div>
+                      <div class="col-span-2 flex justify-between bg-blue-50 text-blue-700 font-semibold px-2 py-[2px] rounded border border-blue-100 mt-[2px]">
+                          <span>面交并比(IoU): <span class="font-bold">${iou}</span></span> 
                 </div>
             </div>`;
         }
@@ -399,10 +403,10 @@
 
         ui.btnCsv.addEventListener('click', () => {
             if(!currentData) return;
-            let csv = "data:text/csv;charset=utf-8,\uFEFF算法引擎定名,运算执行状态,(X)中心点,(Y)中心点,像素半径,覆盖率,置信度\n";
+            let csv = "data:text/csv;charset=utf-8,\uFEFF算法引擎定名,运算执行状态,(X)中心点,(Y)中心点,像素半径,线覆盖率,置信度,面交并比IoU\n";
             for(let key in currentData) {
                 let d = currentData[key];
-                csv += `${methodNames[key]},${d.success?'识别成立':'放弃处理'},${d.center?d.center[0]:''},${d.center?d.center[1]:''},${d.radius||''},${d.metrics?.edge_coverage||''},${d.metrics?.confidence||''}\n`;
+                csv += `${methodNames[key]},${d.success?'识别成立':'放弃处理'},${d.center?d.center[0]:''},${d.center?d.center[1]:''},${d.radius||''},${d.metrics?.edge_coverage||''},${d.metrics?.confidence||''},${d.metrics?.mask_iou||''}\n`;
             }
             const link = document.createElement("a"); link.href = encodeURI(csv);
             link.download = `检测算力数据_Build_${new Date().getTime()}.csv`; link.click();
@@ -485,16 +489,14 @@
                      const cx = dt.center[0], cy = dt.center[1], r = dt.radius;
                      const cov = (dt.metrics && dt.metrics.edge_coverage !== undefined) ? (dt.metrics.edge_coverage*100).toFixed(2)+'%' : '-';
                      const conf = (dt.metrics && dt.metrics.confidence !== undefined) ? (dt.metrics.confidence*100).toFixed(2)+'%' : '-';
-                     ctx.font = '28px sans-serif';
-                     ctx.fillStyle = '#475569';
-                     
-                     let info = `圆心: X=${cx}, Y=${cy} | 半径: ${r}px | 覆盖率: ${cov} | 置信度: ${conf}`;
-                     ctx.fillText(info, x + 30, y + 70);
-
-                     if(images[key]) {
-                         ctx.drawImage(images[key], x, y + header, maxW, maxH);
+                       const iou = (dt.metrics && dt.metrics.mask_iou !== undefined) ? (dt.metrics.mask_iou*100).toFixed(2)+'%' : '-';
+                       
+                       ctx.font = '28px sans-serif';
+                       ctx.fillStyle = '#475569';
+                       
+                       let info = `圆心:(${cx},${cy}) | R:${r}px | 线覆盖:${cov} | 面交并比:${iou}`;
                      }
-                 } else {
+                  else {
                      ctx.fillStyle = '#ef4444';
                      ctx.font = 'italic 32px sans-serif';
                      ctx.fillText(dt && dt.message ? dt.message : '未运算或检测失败', x + 30, y + 70);
