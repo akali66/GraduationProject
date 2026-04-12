@@ -1,0 +1,12 @@
+train: train/images
+val: train/images
+
+nc: 1
+names: ['hole']
+
+roboflow:
+  workspace: sillycats-workspace
+  project: sillycats-workspace
+  version: dataset
+  license: Private
+  url: https://app.roboflow.com/sillycats-workspace/sillycats-workspace/dataset
