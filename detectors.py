@@ -279,7 +279,7 @@ def detect_yolo_segmentation(gray_image: np.ndarray, params: dict) -> Dict[str, 
     start_time = time.time()
     try:
          # 1. 加载模型
-        model = get_yolo_model(params.get('yolo_model_path', 'runs/segment/Borehole_Training/YOLOv8n_Seg_Run13/weights/best.pt'))
+        model = get_yolo_model(params.get('yolo_model_path', 'runs/segment/Borehole_Training/YOLOv8n_Seg_Run1/weights/best.pt'))
         if model is None:
             raise RuntimeError('Ultralytics 库未安装或模型加载失败。')
             

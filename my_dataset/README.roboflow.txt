@@ -1,8 +1,8 @@
 
-test - vdataset sillycats-workspace
+BoreholeDetection - vdataset sillycats-workspace
 ==============================
 
-This dataset was exported via roboflow.com on April 8, 2026 at 2:27 PM GMT
+This dataset was exported via roboflow.com on April 12, 2026 at 10:35 AM GMT
 
 Roboflow is an end-to-end computer vision platform that helps you
 * collaborate with your team on computer vision projects
@@ -17,7 +17,7 @@ visit https://github.com/roboflow/notebooks
 
 To find over 100k other datasets and pre-trained models, visit https://universe.roboflow.com
 
-The dataset includes 14 images.
-Test are annotated in YOLOv8 format.
+The dataset includes 160 images.
+BoreholeDetection are annotated in YOLOv8 format.
 
 No pre-processing or augmentation was applied.

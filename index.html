@@ -324,41 +324,49 @@
         function createResultCard(key, data) {
             const baseClass = "bg-white p-2 rounded shadow-sm border flex flex-col relative w-full h-full overflow-hidden";
             
-            if (!data.success) {
-                return `<div class="${baseClass} border-t-4 border-rose-400 opacity-90 justify-center items-center">
-                    <p class="text-xs font-bold text-slate-800 mb-[2px] truncate">${methodNames[key]}</p>
-                    <div class="px-2 py-1 mt-1 bg-red-50 text-red-500 rounded border border-red-100 text-[11px] leading-tight text-center break-words w-full overflow-y-auto">
-                        ${data.message || "未能检测到圆"}
-                    </div>
-                </div>`;
-            }
-            
-            const cx = data.center[0], cy = data.center[1], r = data.radius;
+              const cx = (data.center !== undefined && data.center !== null && Array.isArray(data.center) && data.center.length >= 2) ? data.center[0] : '-';
+            const cy = (data.center !== undefined && data.center !== null && Array.isArray(data.center) && data.center.length >= 2) ? data.center[1] : '-';
+            const r = (data.radius !== undefined && data.radius !== null) ? data.radius : '-';
               // 获取最新返回的 edge_coverage, confidence, mask_iou
-              const cov = (data.metrics && data.metrics.edge_coverage !== undefined) ? (data.metrics.edge_coverage*100).toFixed(2)+'%' : '-';
-              const conf = (data.metrics && data.metrics.confidence !== undefined) ? (data.metrics.confidence*100).toFixed(2)+'%' : '-';
-              const iou = (data.metrics && data.metrics.mask_iou !== undefined) ? (data.metrics.mask_iou*100).toFixed(2)+'%' : 'N/A';
+              const cov = (data.metrics && data.metrics.edge_coverage !== undefined && data.metrics.edge_coverage !== null) ? (data.metrics.edge_coverage*100).toFixed(2)+'%' : '-';
+              const conf = (data.metrics && data.metrics.confidence !== undefined && data.metrics.confidence !== null) ? (data.metrics.confidence*100).toFixed(2)+'%' : '-';
+              const iou = (data.metrics && data.metrics.mask_iou !== undefined && data.metrics.mask_iou !== null) ? (data.metrics.mask_iou*100).toFixed(2)+'%' : 'N/A';
 
-              return `<div class="${baseClass} border-slate-200">
+              let metricsHtml = '';
+              if (!data.success) {
+                  metricsHtml = `<div class="col-span-2 flex justify-center bg-red-50 text-red-500 font-semibold px-2 py-[2px] rounded border border-red-100 mt-[2px]">
+                            <span>${data.message || "未能检测到圆"}</span>
+                        </div>`;
+              } else {
+                  metricsHtml = `<div class="col-span-2 flex justify-between bg-emerald-50 text-emerald-700 font-semibold px-2 py-[2px] rounded border border-emerald-100 mt-[2px]">
+                            <span>线覆盖率: <span class="font-bold">${cov}</span></span> 
+                            <span>置信度: <span class="font-bold">${conf}</span></span>
+                        </div>
+                        <div class="col-span-2 flex justify-between bg-blue-50 text-blue-700 font-semibold px-2 py-[2px] rounded border border-blue-100 mt-[2px]">
+                            <span>面交并比(IoU): <span class="font-bold">${iou}</span></span> 
+                        </div>`;
+              }
+
+              let defaultElapsed = 0;
+              if (data.elapsed_ms !== undefined && data.elapsed_ms !== null) {
+                  defaultElapsed = data.elapsed_ms;
+              }
+
+              return `<div class="${baseClass} ${data.success ? 'border-slate-200' : 'border-rose-400 opacity-95'}">
                   <div class="flex justify-between items-center text-xs font-bold border-b border-slate-100 pb-1 mb-1 shrink-0 w-full">
-                      <span class="text-slate-700 truncate pl-1 border-l-[3px] border-emerald-500">${methodNames[key]}</span>
-                      <button class="text-blue-500 hover:text-blue-700 shrink-0 text-[10px] ml-2 outline-none font-semibold px-1 rounded bg-blue-50 cursor-pointer" onclick="openModal('${data.result_image}')">全屏查看</button>
+                      <span class="text-slate-700 truncate pl-1 border-l-[3px] ${data.success ? 'border-emerald-500' : 'border-red-500'}">${methodNames[key] || key}</span>
+                      <button class="text-blue-500 hover:text-blue-700 shrink-0 text-[10px] ml-2 outline-none font-semibold px-1 rounded bg-blue-50 cursor-pointer" onclick="openModal('${data.result_image || ''}')">全屏查看</button>
                   </div>
                   
-                  <div class="flex-1 min-h-0 relative w-full bg-[#f8fafc] rounded-sm overflow-hidden cursor-pointer" onclick="openModal('${data.result_image}')" style="background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 10px 10px;">
-                      <img src="${data.result_image}" class="absolute inset-0 w-full h-full object-contain p-1">
-                      <div class="absolute bottom-1 right-1 bg-slate-900/40 text-slate-50 text-[9px] px-1.5 rounded pointer-events-none backdrop-blur-sm">${data.elapsed_ms.toFixed(2)}ms</div>
+                  <div class="flex-1 min-h-0 relative w-full bg-[#f8fafc] rounded-sm overflow-hidden cursor-pointer" onclick="openModal('${data.result_image || ''}')" style="background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 10px 10px;">
+                      <img src="${data.result_image || ''}" class="absolute inset-0 w-full h-full object-contain p-1">
+                      <div class="absolute bottom-1 right-1 bg-slate-900/40 text-slate-50 text-[9px] px-1.5 rounded pointer-events-none backdrop-blur-sm">${defaultElapsed.toFixed(2)}ms</div>
                   </div>
                   
                   <div class="shrink-0 mt-1.5 grid grid-cols-2 gap-1 text-[10px] text-slate-600 bg-slate-50 border border-slate-100 p-1.5 rounded w-full">
-                      <div class="bg-white px-1.5 border border-slate-100 rounded text-center truncate">X=<b>${cx}</b>, Y=<b>${cy}</b></div>
-                      <div class="bg-white px-1.5 border border-slate-100 rounded text-center truncate">R=<b>${r}px</b></div>
-                      <div class="col-span-2 flex justify-between bg-emerald-50 text-emerald-700 font-semibold px-2 py-[2px] rounded border border-emerald-100 mt-[2px]">
-                          <span>线覆盖率: <span class="font-bold">${cov}</span></span> 
-                          <span>置信度: <span class="font-bold">${conf}</span></span>
-                      </div>
-                      <div class="col-span-2 flex justify-between bg-blue-50 text-blue-700 font-semibold px-2 py-[2px] rounded border border-blue-100 mt-[2px]">
-                          <span>面交并比(IoU): <span class="font-bold">${iou}</span></span> 
+                      <div class="bg-white px-1.5 border border-slate-100 rounded text-center truncate">X=<b>${data.success ? cx : '-'}</b>, Y=<b>${data.success ? cy : '-'}</b></div>
+                      <div class="bg-white px-1.5 border border-slate-100 rounded text-center truncate">R=<b>${data.success && r !== '-' ? r+'px' : '-'}</b></div>
+                      ${metricsHtml}
                 </div>
             </div>`;
         }
@@ -369,14 +377,18 @@
             ui.compareView.classList.add('hidden');
             
             ui.statusInfo.textContent = "✅ 运行完毕.";
-            let bestCoverage = -1;
+            let bestCoverage = 0;
+            let bestMaskIou = 0;
             for(let k in data) { 
-                if(data[k].success && data[k].metrics && data[k].metrics.edge_coverage !== undefined && data[k].metrics.edge_coverage > bestCoverage) { 
+                if(data[k] && data[k].success && data[k].metrics && data[k].metrics.edge_coverage !== undefined && data[k].metrics.edge_coverage !== null && data[k].metrics.edge_coverage > bestCoverage) { 
                     bestCoverage = data[k].metrics.edge_coverage; 
+                } 
+                if(data[k] && data[k].success && data[k].metrics && data[k].metrics.mask_iou !== undefined && data[k].metrics.mask_iou !== null && data[k].metrics.mask_iou > bestMaskIou) { 
+                    bestMaskIou = data[k].metrics.mask_iou; 
                 } 
             }
             
-            if(bestCoverage >= 0) ui.metricsInfo.innerHTML = `最高覆盖率: <span class="text-white bg-emerald-600 px-1 rounded shadow-sm">${(bestCoverage*100).toFixed(2)}%</span>`;
+            if(bestCoverage >= 0) ui.metricsInfo.innerHTML = `最高覆盖率: <span class="text-white bg-emerald-600 px-1 rounded shadow-sm">${(bestCoverage*100).toFixed(2)}%</span> 最高面交并比: <span class="text-white bg-blue-600 px-1 rounded shadow-sm">${(bestMaskIou*100).toFixed(2)}%</span>`;
             else ui.metricsInfo.innerHTML = `<span class="text-rose-400">未能成功检测</span>`;
 
             if (isCompare) {
@@ -406,7 +418,15 @@
             let csv = "data:text/csv;charset=utf-8,\uFEFF算法引擎定名,运算执行状态,(X)中心点,(Y)中心点,像素半径,线覆盖率,置信度,面交并比IoU\n";
             for(let key in currentData) {
                 let d = currentData[key];
-                csv += `${methodNames[key]},${d.success?'识别成立':'放弃处理'},${d.center?d.center[0]:''},${d.center?d.center[1]:''},${d.radius||''},${d.metrics?.edge_coverage||''},${d.metrics?.confidence||''},${d.metrics?.mask_iou||''}\n`;
+                const cx = (d.center !== undefined && d.center !== null && Array.isArray(d.center) && d.center.length >= 2) ? d.center[0] : '-';
+                const cy = (d.center !== undefined && d.center !== null && Array.isArray(d.center) && d.center.length >= 2) ? d.center[1] : '-';
+                const r = (d.radius !== undefined && d.radius !== null) ? d.radius : '-';
+                
+                const cov = (d.metrics && d.metrics.edge_coverage !== undefined && d.metrics.edge_coverage !== null && d.metrics.edge_coverage !== '-') ? (d.metrics.edge_coverage*100).toFixed(2)+'%' : '-';
+                const conf = (d.metrics && d.metrics.confidence !== undefined && d.metrics.confidence !== null && d.metrics.confidence !== '-') ? (d.metrics.confidence*100).toFixed(2)+'%' : '-';
+                const iou = (d.metrics && d.metrics.mask_iou !== undefined && d.metrics.mask_iou !== null && d.metrics.mask_iou !== '-') ? (d.metrics.mask_iou*100).toFixed(2)+'%' : '-';
+
+                csv += `${methodNames[key] || key},${d.success?'检测成功':'检测失败'},${cx},${cy},${r},${cov},${conf},${iou}\n`;
             }
             const link = document.createElement("a"); link.href = encodeURI(csv);
             link.download = `检测算力数据_Build_${new Date().getTime()}.csv`; link.click();
@@ -435,7 +455,7 @@
 
              // Load images
              await Promise.all(methodsToRender.map(async (key) => {
-                 if (currentData[key] && currentData[key].success && currentData[key].result_image) {
+                 if (currentData[key] && currentData[key].result_image) {
                      return new Promise((resolve) => {
                          const img = new Image();
                          img.onload = () => {
@@ -444,6 +464,7 @@
                              maxH = Math.max(maxH, img.height);
                              resolve();
                          };
+                         img.onerror = () => resolve();
                          img.src = currentData[key].result_image;
                      });
                  }
@@ -483,25 +504,33 @@
                  ctx.fillStyle = '#1e293b';
                  ctx.font = 'bold 36px sans-serif';
                  ctx.textBaseline = 'top';
-                 ctx.fillText(exportMethodNames[key], x + 30, y + 20);
+                 ctx.fillText(exportMethodNames[key] || key, x + 30, y + 20);
 
                  if (dt && dt.success) {
-                     const cx = dt.center[0], cy = dt.center[1], r = dt.radius;
-                     const cov = (dt.metrics && dt.metrics.edge_coverage !== undefined) ? (dt.metrics.edge_coverage*100).toFixed(2)+'%' : '-';
-                     const conf = (dt.metrics && dt.metrics.confidence !== undefined) ? (dt.metrics.confidence*100).toFixed(2)+'%' : '-';
-                       const iou = (dt.metrics && dt.metrics.mask_iou !== undefined) ? (dt.metrics.mask_iou*100).toFixed(2)+'%' : '-';
+                     const cx = (dt.center !== undefined && dt.center !== null && Array.isArray(dt.center) && dt.center.length >= 2) ? dt.center[0] : '-';
+                     const cy = (dt.center !== undefined && dt.center !== null && Array.isArray(dt.center) && dt.center.length >= 2) ? dt.center[1] : '-';
+                     const r = (dt.radius !== undefined && dt.radius !== null) ? dt.radius : '-';
+                     const cov = (dt.metrics && dt.metrics.edge_coverage !== undefined && dt.metrics.edge_coverage !== null) ? (dt.metrics.edge_coverage*100).toFixed(2)+'%' : '-';
+                     const conf = (dt.metrics && dt.metrics.confidence !== undefined && dt.metrics.confidence !== null) ? (dt.metrics.confidence*100).toFixed(2)+'%' : '-';
+                     const iou = (dt.metrics && dt.metrics.mask_iou !== undefined && dt.metrics.mask_iou !== null) ? (dt.metrics.mask_iou*100).toFixed(2)+'%' : 'N/A';
                        
-                       ctx.font = '28px sans-serif';
-                       ctx.fillStyle = '#475569';
+                     ctx.font = '28px sans-serif';
+                     ctx.fillStyle = '#475569';
                        
-                       let info = `圆心:(${cx},${cy}) | R:${r}px | 线覆盖:${cov} | 面交并比:${iou}`;
-                     }
-                  else {
+                     const info = `圆心:(${cx},${cy}) | R:${r} | 线覆盖:${cov} | 置信度:${conf} | 面交并比:${iou}`;
+                     ctx.fillText(info, x + 30, y + 70);
+                 }
+                 else {
                      ctx.fillStyle = '#ef4444';
                      ctx.font = 'italic 32px sans-serif';
-                     ctx.fillText(dt && dt.message ? dt.message : '未运算或检测失败', x + 30, y + 70);
+                     ctx.fillText(dt && dt.message ? dt.message : '未能检出目标圆', x + 30, y + 70);
                  }
                  
+                 // Draw Image
+                 if(images[key]) {
+                      ctx.drawImage(images[key], x, y + header, maxW, maxH);
+                 }
+
                  ctx.strokeStyle = '#cbd5e1';
                  ctx.lineWidth = 2;
                  ctx.strokeRect(x, y, maxW, maxH + header);
