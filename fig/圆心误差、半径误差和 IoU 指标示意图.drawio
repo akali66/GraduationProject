@@ -1,0 +1,43 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.8.0 Safari/537.36" version="29.6.1">
+  <diagram name="第 1 页" id="7E4IW0WcLJwjbTJBjp7f">
+    <mxGraphModel dx="679" dy="400" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="9UAzjcwkXOf8DDYZ71mn-13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="200" width="431.5" x="100" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="9UAzjcwkXOf8DDYZ71mn-1" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=none;strokeColor=#6c8ebf;" value="" vertex="1">
+          <mxGeometry height="120" width="120" x="160" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="9UAzjcwkXOf8DDYZ71mn-2" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=none;strokeColor=#b85450;" value="" vertex="1">
+          <mxGeometry height="90" width="90" x="200" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="9UAzjcwkXOf8DDYZ71mn-3" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#6C8EBF;strokeColor=#6c8ebf;" value="" vertex="1">
+          <mxGeometry height="3" width="3" x="218.5" y="298.5" as="geometry" />
+        </mxCell>
+        <mxCell id="9UAzjcwkXOf8DDYZ71mn-4" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#B85450;strokeColor=#b85450;" value="" vertex="1">
+          <mxGeometry height="3" width="3" x="243.5" y="313.5" as="geometry" />
+        </mxCell>
+        <mxCell id="9UAzjcwkXOf8DDYZ71mn-5" edge="1" parent="1" style="endArrow=none;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=-0.045;entryY=0.214;entryDx=0;entryDy=0;entryPerimeter=0;" target="9UAzjcwkXOf8DDYZ71mn-4" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="221.50000000000006" y="301.06000000000006" as="sourcePoint" />
+            <mxPoint x="245.4393398282199" y="313.4993398282199" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="9UAzjcwkXOf8DDYZ71mn-6" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="" vertex="1">
+          <mxGeometry height="110" width="110" x="330" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="9UAzjcwkXOf8DDYZ71mn-7" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#fff2cc;strokeColor=#d6b656;" value="" vertex="1">
+          <mxGeometry height="100" width="100" x="380" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="9UAzjcwkXOf8DDYZ71mn-8" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=10;" value="中心误差：预测圆心与标注圆心距离&lt;div&gt;半径误差：预测半径与标注半径差值&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="190" x="125" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="9UAzjcwkXOf8DDYZ71mn-9" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=10;" value="IoU = 交集面积 / 并集面积" vertex="1">
+          <mxGeometry height="40" width="190" x="310" y="370" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,74 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.8.0 Safari/537.36" version="29.6.1">
+  <diagram name="第 1 页" id="OCFtKkmBy0-q8Co7NH1f">
+    <mxGraphModel dx="837" dy="498" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-20" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="" vertex="1">
+          <mxGeometry height="240" width="420" x="120" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-5" edge="1" parent="1" source="4PxJr5AxU0dqwUFS0edn-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="4PxJr5AxU0dqwUFS0edn-4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="开始" vertex="1">
+          <mxGeometry height="40" width="90" x="150" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-7" edge="1" parent="1" source="4PxJr5AxU0dqwUFS0edn-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="4PxJr5AxU0dqwUFS0edn-6" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="输入灰度图" vertex="1">
+          <mxGeometry height="40" width="90" x="150" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-9" edge="1" parent="1" source="4PxJr5AxU0dqwUFS0edn-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="4PxJr5AxU0dqwUFS0edn-8" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="260" y="260" />
+              <mxPoint x="260" y="100" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="5x5高斯平滑" vertex="1">
+          <mxGeometry height="40" width="90" x="150" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-11" edge="1" parent="1" source="4PxJr5AxU0dqwUFS0edn-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="4PxJr5AxU0dqwUFS0edn-10" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="霍夫圆检测" vertex="1">
+          <mxGeometry height="40" width="90" x="290" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-13" edge="1" parent="1" source="4PxJr5AxU0dqwUFS0edn-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="4PxJr5AxU0dqwUFS0edn-12" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-15" edge="1" parent="1" source="4PxJr5AxU0dqwUFS0edn-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="4PxJr5AxU0dqwUFS0edn-14" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="400" y="180" />
+              <mxPoint x="400" y="100" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-10" parent="1" style="rhombus;whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;" value="是否检测到圆" vertex="1">
+          <mxGeometry height="60" width="95" x="287.5" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-12" parent="1" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="检测失败" vertex="1">
+          <mxGeometry height="40" width="85" x="292.5" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-17" edge="1" parent="1" source="4PxJr5AxU0dqwUFS0edn-14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="4PxJr5AxU0dqwUFS0edn-16" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-14" parent="1" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="取第一个候选圆作为结果" vertex="1">
+          <mxGeometry height="40" width="90" x="420" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-19" edge="1" parent="1" source="4PxJr5AxU0dqwUFS0edn-16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="4PxJr5AxU0dqwUFS0edn-18" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-16" parent="1" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="输出：半径、圆心、成功状态等" vertex="1">
+          <mxGeometry height="40" width="90" x="420" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="4PxJr5AxU0dqwUFS0edn-18" parent="1" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="结束" vertex="1">
+          <mxGeometry height="40" width="90" x="420" y="240" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

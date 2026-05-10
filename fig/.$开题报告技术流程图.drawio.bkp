@@ -1,0 +1,112 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.8.0 Safari/537.36" version="29.6.1">
+  <diagram name="第 1 页" id="JvgoI28648qS8D8hNPCF">
+    <mxGraphModel dx="1188" dy="701" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="C-sq63JenaplGmfY_Jay-36" edge="1" parent="1" source="C-sq63JenaplGmfY_Jay-35" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="C-sq63JenaplGmfY_Jay-8" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-35" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="" vertex="1">
+          <mxGeometry height="70" width="408" x="292" y="415" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-27" edge="1" parent="1" source="C-sq63JenaplGmfY_Jay-26" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="C-sq63JenaplGmfY_Jay-6" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-26" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="" vertex="1">
+          <mxGeometry height="60" width="408" x="292" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-25" edge="1" parent="1" source="C-sq63JenaplGmfY_Jay-24" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="C-sq63JenaplGmfY_Jay-2" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-24" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="" vertex="1">
+          <mxGeometry height="70" width="408" x="292" y="175" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-3" edge="1" parent="1" source="C-sq63JenaplGmfY_Jay-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="C-sq63JenaplGmfY_Jay-2" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="钻孔图像采集" vertex="1">
+          <mxGeometry height="60" width="120" x="140" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-5" edge="1" parent="1" source="C-sq63JenaplGmfY_Jay-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="C-sq63JenaplGmfY_Jay-4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-2" parent="1" style="whiteSpace=wrap;html=1;rounded=1;" value="图像预处理" vertex="1">
+          <mxGeometry height="60" width="120" x="140" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-7" edge="1" parent="1" source="C-sq63JenaplGmfY_Jay-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="C-sq63JenaplGmfY_Jay-6" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-4" parent="1" style="whiteSpace=wrap;html=1;rounded=1;" value="边缘检测" vertex="1">
+          <mxGeometry height="60" width="120" x="140" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-9" edge="1" parent="1" source="C-sq63JenaplGmfY_Jay-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="C-sq63JenaplGmfY_Jay-8" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-6" parent="1" style="whiteSpace=wrap;html=1;rounded=1;" value="实现四种圆心检测方法" vertex="1">
+          <mxGeometry height="60" width="120" x="140" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-11" edge="1" parent="1" source="C-sq63JenaplGmfY_Jay-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="C-sq63JenaplGmfY_Jay-10" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-8" parent="1" style="whiteSpace=wrap;html=1;rounded=1;" value="对比分析" vertex="1">
+          <mxGeometry height="60" width="120" x="140" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-13" edge="1" parent="1" source="C-sq63JenaplGmfY_Jay-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="C-sq63JenaplGmfY_Jay-12" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-10" parent="1" style="whiteSpace=wrap;html=1;rounded=1;" value="GUI系统实现" vertex="1">
+          <mxGeometry height="60" width="120" x="140" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-12" parent="1" style="whiteSpace=wrap;html=1;rounded=1;" value="结果分析与总结" vertex="1">
+          <mxGeometry height="60" width="120" x="140" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-14" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="二值化" vertex="1">
+          <mxGeometry height="50" width="100" x="314" y="185" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-15" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="滤波" vertex="1">
+          <mxGeometry height="50" width="90" x="580" y="185" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-16" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="增强" vertex="1">
+          <mxGeometry height="50" width="90" x="451" y="185" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-19" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="Canny等" vertex="1">
+          <mxGeometry height="50" width="90" x="300" y="345" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-20" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="Canny等" vertex="1">
+          <mxGeometry height="50" width="90" x="500" y="345" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-22" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="Canny等" vertex="1">
+          <mxGeometry height="50" width="90" x="400" y="345" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-23" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="Canny等" vertex="1">
+          <mxGeometry height="50" width="90" x="600" y="345" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-29" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="覆盖率" vertex="1">
+          <mxGeometry height="50" width="90" x="356" y="425" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-33" edge="1" parent="1" source="C-sq63JenaplGmfY_Jay-32" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="C-sq63JenaplGmfY_Jay-4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-32" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="" vertex="1">
+          <mxGeometry height="70" width="408" x="292" y="255" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-31" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="Canny等" vertex="1">
+          <mxGeometry height="50" width="100" x="446" y="265" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-34" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="置信度" vertex="1">
+          <mxGeometry height="50" width="90" x="541" y="425" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-39" edge="1" parent="1" source="C-sq63JenaplGmfY_Jay-37" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="C-sq63JenaplGmfY_Jay-10" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-37" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="" vertex="1">
+          <mxGeometry height="70" width="408" x="292" y="495" as="geometry" />
+        </mxCell>
+        <mxCell id="C-sq63JenaplGmfY_Jay-38" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="Tkinter可视化" vertex="1">
+          <mxGeometry height="50" width="100" x="446" y="505" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

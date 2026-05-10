@@ -266,7 +266,7 @@ except ImportError:
 _yolo_model = None
 
 # 3. 获取YOLO模型的函数,单例模式：确保模型只加载一次，提高效率
-def get_yolo_model(model_path='runs/segment/Borehole_Training/YOLOv8n_Seg_Run13/weights/best.pt'):
+def get_yolo_model(model_path='runs/segment/Borehole_Training/YOLOv8n_Seg_Run1/weights/best.pt'):
     global _yolo_model
     if _yolo_model is None:
         if YOLO is not None:

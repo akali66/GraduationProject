@@ -1,0 +1,34 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.8.0 Safari/537.36" version="29.6.1">
+  <diagram name="第 1 页" id="7fFszG3Gz89DqU9NswvG">
+    <mxGraphModel dx="679" dy="400" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="u5J8DLe8oN6RRP70m50d-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; " vertex="1">
+          <mxGeometry height="120" width="500" x="130" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="u5J8DLe8oN6RRP70m50d-2" edge="1" parent="1" source="u5J8DLe8oN6RRP70m50d-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="u5J8DLe8oN6RRP70m50d-5" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="u5J8DLe8oN6RRP70m50d-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Base64结果图" vertex="1">
+          <mxGeometry height="40" width="90" x="150" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="u5J8DLe8oN6RRP70m50d-4" edge="1" parent="1" source="u5J8DLe8oN6RRP70m50d-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="u5J8DLe8oN6RRP70m50d-7" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="u5J8DLe8oN6RRP70m50d-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="前端渲染" vertex="1">
+          <mxGeometry height="40" width="90" x="270" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="u5J8DLe8oN6RRP70m50d-6" edge="1" parent="1" source="u5J8DLe8oN6RRP70m50d-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="u5J8DLe8oN6RRP70m50d-9" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="u5J8DLe8oN6RRP70m50d-7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="展示圆心&lt;div&gt;半径指标&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="90" x="390" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="u5J8DLe8oN6RRP70m50d-9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="PNG导出" vertex="1">
+          <mxGeometry height="40" width="90" x="510" y="250" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -67,8 +67,8 @@ async def detect_image(
             cv2.circle(img_copy, center, 2, (0, 0, 255), 3)
 
             try:
-                # 【修改1：强制使用原图真实边缘】
-                # 指导书要求：“被原始边缘覆盖的比例”
+                # 【强制使用原图真实边缘】
+                # “被原始边缘覆盖的比例”
                 blurred_gray = cv2.GaussianBlur(gray_image, (5, 5), 0)
                 original_edge_map = cv2.Canny(blurred_gray, 50, 150)
                 
@@ -77,7 +77,7 @@ async def detect_image(
                 cov = compute_edge_coverage(center, radius, original_edge_map, tol=tol)
                 metrics = {"edge_coverage": cov}
 
-                # 【修改2：按指导书屏蔽非Hough类方法的置信度，并增加二维交并比IoU算法】
+                # 【按指导书屏蔽非Hough类方法的置信度，并增加二维交并比IoU算法】
                 if method_id in ["method1", "method3"]:
                     conf = compute_hough_confidence(res.get("debug", {}), center, radius)
                     metrics["confidence"] = conf

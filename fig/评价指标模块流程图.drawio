@@ -1,0 +1,40 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.8.0 Safari/537.36" version="29.6.1">
+  <diagram name="第 1 页" id="TbQW3-5JjZwlIyQpNQPP">
+    <mxGraphModel dx="1642" dy="481" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="CxkXcT_HxvoqKHoiQMxA-10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; " vertex="1">
+          <mxGeometry height="120" width="610" x="-820" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="CxkXcT_HxvoqKHoiQMxA-3" edge="1" parent="1" source="CxkXcT_HxvoqKHoiQMxA-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="CxkXcT_HxvoqKHoiQMxA-2" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="CxkXcT_HxvoqKHoiQMxA-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="读取检测结果" vertex="1">
+          <mxGeometry height="40" width="90" x="-800" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="CxkXcT_HxvoqKHoiQMxA-5" edge="1" parent="1" source="CxkXcT_HxvoqKHoiQMxA-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="CxkXcT_HxvoqKHoiQMxA-4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="CxkXcT_HxvoqKHoiQMxA-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="判断方法类型" vertex="1">
+          <mxGeometry height="40" width="90" x="-680" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="CxkXcT_HxvoqKHoiQMxA-7" edge="1" parent="1" source="CxkXcT_HxvoqKHoiQMxA-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="CxkXcT_HxvoqKHoiQMxA-6" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="CxkXcT_HxvoqKHoiQMxA-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="覆盖率&lt;div&gt;置信度&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="90" x="-560" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="CxkXcT_HxvoqKHoiQMxA-9" edge="1" parent="1" source="CxkXcT_HxvoqKHoiQMxA-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="CxkXcT_HxvoqKHoiQMxA-8" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="CxkXcT_HxvoqKHoiQMxA-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Mask IoU" vertex="1">
+          <mxGeometry height="40" width="90" x="-440" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="CxkXcT_HxvoqKHoiQMxA-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="返回指标" vertex="1">
+          <mxGeometry height="40" width="90" x="-320" y="320" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
